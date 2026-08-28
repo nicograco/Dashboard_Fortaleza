@@ -1048,7 +1048,7 @@ with tab2:
     st.warning("No se detectó la columna de Fecha en el archivo.")
 
 
-# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (ROBUSTA) ---
+# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (COLUMNAS BLINDADAS) ---
 with tab3:
   st.markdown(
       "### 📊 Análisis Demográfico y Geográfico del Plantel (Jugadores Únicos)"
@@ -1060,18 +1060,15 @@ with tab3:
       " plantilla."
   )
 
+  # Detección precisa e independiente de cada columna demográfica
   col_depto_cand = [
       c
       for c in df_raw.columns
-      if any(k in str(c).lower() for k in ["depto", "departamento"])
+      if "departamento" in str(c).lower() or "depto" in str(c).lower()
   ]
-  col_mes_cand = [
-      c for c in df_raw.columns if "mes" in str(c).lower()
-  ]
+  col_mes_cand = [c for c in df_raw.columns if "mes" in str(c).lower()]
   col_anio_cand = [
-      c
-      for c in df_raw.columns
-      if any(k in str(c).lower() for k in ["año", "ano"])
+      c for c in df_raw.columns if "año" in str(c).lower() or "ano" in str(c).lower()
   ]
 
   if col_depto_cand and col_mes_cand and col_anio_cand:
@@ -1118,7 +1115,7 @@ with tab3:
       )
       df_geo.columns = ["Departamento", "Cantidad_Jugadores"]
       total_jugadores_geo = df_geo["Cantidad_Jugadores"].sum()
-      
+
       if total_jugadores_geo > 0:
         df_geo["Porcentaje"] = (
             df_geo["Cantidad_Jugadores"] / total_jugadores_geo
