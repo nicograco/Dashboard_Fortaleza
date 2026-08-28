@@ -888,19 +888,18 @@ with tab2:
       st.plotly_chart(fig_min, use_container_width=True)
 
 
-# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (USANDO Resumen_Jugadores DIRECTAMENTE) ---
+# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (CON PORCENTAJES Y LISTADOS) ---
 with tab3:
   st.markdown(
       "### 📊 Análisis Demográfico y Geográfico del Plantel (Jugadores Únicos)"
   )
   st.markdown(
       "Este módulo utiliza directamente la pestaña **Resumen_Jugadores** para"
-      " extraer los datos reales de departamento, mes de nacimiento y año de"
-      " nacimiento de cada deportista."
+      " extraer los datos reales de departamento, mes y año de nacimiento de"
+      " cada deportista."
   )
 
   if not df_resumen.empty:
-    # Limpiar y filtrar resumen (excluyendo unknown_24 y nulos)
     df_unicos = df_resumen.dropna(subset=["Nombre del jugador"]).copy()
     df_unicos = df_unicos[
         ~df_unicos["Nombre del jugador"]
@@ -931,7 +930,13 @@ with tab3:
         .str.strip()
         .str.title()
     )
-    df_unicos[col_mes_res] = df_unicos[col_mes_res].fillna("Desconocido").astype(str).str.strip().str.title()
+    df_unicos[col_mes_res] = (
+        df_unicos[col_mes_res]
+        .fillna("Desconocido")
+        .astype(str)
+        .str.strip()
+        .str.title()
+    )
     df_unicos[col_anio_res] = pd.to_numeric(
         df_unicos[col_anio_res], errors="coerce"
     ).fillna(0)
@@ -1043,18 +1048,27 @@ with tab3:
           .reset_index(name="Cantidad_Jugadores")
       )
       df_trim.columns = ["Trimestre", "Cantidad_Jugadores"]
-      total_jugadores_trim = df_trim["Cantidad_Jugadores"].sum()
+      total_filtrado_trim = df_trim["Cantidad_Jugadores"].sum()
 
-      if total_jugadores_trim > 0:
+      if total_filtrado_trim > 0:
         df_trim["Porcentaje"] = (
-            df_trim["Cantidad_Jugadores"] / max(1, total_jugadores_trim)
+            df_trim["Cantidad_Jugadores"] / total_filtrado_trim
         ) * 100
+        # Texto personalizado en la barra: ej. "6 (30.0%)"
+        df_trim["Texto_Barra"] = df_trim.apply(
+            lambda r: (
+                f"{int(r['Cantidad_Jugadores'])} jug. ({r['Porcentaje']:.1f}%)"
+                if r["Cantidad_Jugadores"] > 0
+                else "0"
+            ),
+            axis=1,
+        )
 
         fig_trim = px.bar(
             df_trim,
             x="Trimestre",
             y="Cantidad_Jugadores",
-            text="Cantidad_Jugadores",
+            text="Texto_Barra",
             color="Cantidad_Jugadores",
             color_continuous_scale="Blues",
             labels={
@@ -1073,8 +1087,32 @@ with tab3:
             margin=dict(l=10, r=10, t=40, b=10),
             showlegend=False,
         )
-        fig_trim.update_traces(textposition="outside")
+        fig_trim.update_traces(textposition="outside", textfont_size=11)
         st.plotly_chart(fig_trim, use_container_width=True)
+
+        with st.expander(
+            f"👥 Ver listado de jugadores por Trimestre ({anio_filtro_trim})"
+        ):
+          trim_sel = st.selectbox(
+              "Selecciona el Trimestre a consultar:",
+              orden_trimestres,
+              key="sel_trim_det",
+          )
+          jug_trim_df = df_trim_source[
+              df_trim_source["Trimestre_Nacimiento"] == trim_sel
+          ][["Nombre del jugador", col_pos_res, col_dept_res, col_mes_res, col_anio_res]]
+          cant_j = len(jug_trim_df)
+          pct_j = (
+              (cant_j / total_filtrado_trim) * 100
+              if total_filtrado_trim > 0
+              else 0
+          )
+          st.markdown(
+              f"**{cant_j} jugadores** encontrados en **{trim_sel}** (equivalente"
+              f" al **{pct_j:.1f}%** de los nacidos en"
+              f" **{anio_filtro_trim}**)."
+          )
+          st.dataframe(jug_trim_df, use_container_width=True)
 
     st.markdown("---")
     st.markdown("#### 🎂 Desglose por Año de Nacimiento y Edad del Plantel")
@@ -1085,6 +1123,18 @@ with tab3:
         .sort_values(by=col_anio_res)
     )
     df_anio = df_anio[df_anio[col_anio_res] > 0].copy()
+    total_plantel_general = df_anio["Cantidad_Jugadores"].sum()
+
+    df_anio["Porcentaje_Plantel"] = (
+        df_anio["Cantidad_Jugadores"] / max(1, total_plantel_general)
+    ) * 100
+    df_anio["Texto_Barra_Anio"] = df_anio.apply(
+        lambda r: (
+            f"{int(r['Cantidad_Jugadores'])} jug."
+            f" ({r['Porcentaje_Plantel']:.1f}% del plantel)"
+        ),
+        axis=1,
+    )
     df_anio[col_anio_res] = df_anio[col_anio_res].astype(int).astype(str)
 
     if not df_anio.empty:
@@ -1092,22 +1142,25 @@ with tab3:
           df_anio,
           x=col_anio_res,
           y="Cantidad_Jugadores",
-          text="Cantidad_Jugadores",
+          text="Texto_Barra_Anio",
           color="Cantidad_Jugadores",
           color_continuous_scale="Viridis",
           labels={
               col_anio_res: "Año de Nacimiento",
               "Cantidad_Jugadores": "Número de Jugadores",
           },
-          title="<b>Estructura de Edades / Año de Nacimiento del Plantel</b>",
+          title=(
+              "<b>Estructura de Edades / Año de Nacimiento del Plantel (Total:"
+              f" {total_plantel_general} jugadores)</b>"
+          ),
       )
       fig_anio.update_layout(
           plot_bgcolor="rgba(0,0,0,0)",
           paper_bgcolor="rgba(0,0,0,0)",
-          height=350,
+          height=360,
           margin=dict(l=20, r=20, t=40, b=20),
       )
-      fig_anio.update_traces(textposition="outside")
+      fig_anio.update_traces(textposition="outside", textfont_size=11)
       st.plotly_chart(fig_anio, use_container_width=True)
 
     with st.expander("📋 Ver Listado Completo de Deportistas (Datos Únicos)"):
