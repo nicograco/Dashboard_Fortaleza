@@ -888,15 +888,15 @@ with tab2:
       st.plotly_chart(fig_min, use_container_width=True)
 
 
-# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (CON PORCENTAJES Y LISTADOS) ---
+# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (CON SCOUTING Y MATRICES TÁCTICAS) ---
 with tab3:
   st.markdown(
-      "### 📊 Análisis Demográfico y Geográfico del Plantel (Jugadores Únicos)"
+      "### 📊 Análisis Demográfico, Geográfico & Scouting del Plantel"
   )
   st.markdown(
-      "Este módulo utiliza directamente la pestaña **Resumen_Jugadores** para"
-      " extraer los datos reales de departamento, mes y año de nacimiento de"
-      " cada deportista."
+      "Módulo especializado para la detección de talentos, análisis de"
+      " procedencia departamental, aportes posicionales y estructura de"
+      " edades."
   )
 
   if not df_resumen.empty:
@@ -940,6 +940,13 @@ with tab3:
     df_unicos[col_anio_res] = pd.to_numeric(
         df_unicos[col_anio_res], errors="coerce"
     ).fillna(0)
+    df_unicos[col_pos_res] = (
+        df_unicos[col_pos_res]
+        .fillna("Sin Posición")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
 
 
     def mes_a_trimestre(mes):
@@ -1054,7 +1061,6 @@ with tab3:
         df_trim["Porcentaje"] = (
             df_trim["Cantidad_Jugadores"] / total_filtrado_trim
         ) * 100
-        # Texto personalizado en la barra: ej. "6 (30.0%)"
         df_trim["Texto_Barra"] = df_trim.apply(
             lambda r: (
                 f"{int(r['Cantidad_Jugadores'])} jug. ({r['Porcentaje']:.1f}%)"
@@ -1100,7 +1106,13 @@ with tab3:
           )
           jug_trim_df = df_trim_source[
               df_trim_source["Trimestre_Nacimiento"] == trim_sel
-          ][["Nombre del jugador", col_pos_res, col_dept_res, col_mes_res, col_anio_res]]
+          ][[
+              "Nombre del jugador",
+              col_pos_res,
+              col_dept_res,
+              col_mes_res,
+              col_anio_res,
+          ]]
           cant_j = len(jug_trim_df)
           pct_j = (
               (cant_j / total_filtrado_trim) * 100
@@ -1115,7 +1127,7 @@ with tab3:
           st.dataframe(jug_trim_df, use_container_width=True)
 
     st.markdown("---")
-    st.markdown("#### 🎂 Desglose por Año de Nacimiento y Edad del Plantel")
+    st.markdown("#### 🎂 Desglose por Año de Nacimiento y Estructura de Edades")
 
     df_anio = (
         df_unicos.groupby(col_anio_res, as_index=False)
@@ -1135,11 +1147,14 @@ with tab3:
         ),
         axis=1,
     )
-    df_anio[col_anio_res] = df_anio[col_anio_res].astype(int).astype(str)
+    df_anio_str = df_anio.copy()
+    df_anio_str[col_anio_res] = (
+        df_anio_str[col_anio_res].astype(int).astype(str)
+    )
 
-    if not df_anio.empty:
+    if not df_anio_str.empty:
       fig_anio = px.bar(
-          df_anio,
+          df_anio_str,
           x=col_anio_res,
           y="Cantidad_Jugadores",
           text="Texto_Barra_Anio",
@@ -1162,6 +1177,76 @@ with tab3:
       )
       fig_anio.update_traces(textposition="outside", textfont_size=11)
       st.plotly_chart(fig_anio, use_container_width=True)
+
+      with st.expander(
+          "👥 Ver listado de deportistas por Año de Nacimiento (Scouting)"
+      ):
+        anio_sel = st.selectbox(
+            "Selecciona el Año de Nacimiento a consultar:",
+            anios_disponibles,
+            key="sel_anio_det",
+        )
+        jug_anio_df = df_unicos[
+            df_unicos[col_anio_res] == float(anio_sel)
+        ][[
+            "Nombre del jugador",
+            col_pos_res,
+            col_dept_res,
+            col_mes_res,
+            col_anio_res,
+        ]]
+        cant_a = len(jug_anio_df)
+        pct_a = (
+            (cant_a / total_plantel_general) * 100
+            if total_plantel_general > 0
+            else 0
+        )
+        st.markdown(
+            f"**{cant_a} jugadores** nacidos en el año **{anio_sel}**"
+            f" (equivalente al **{pct_a:.1f}%** del total del plantel)."
+        )
+        st.dataframe(jug_anio_df, use_container_width=True)
+
+    # --- NUEVO GRÁFICO: APORTE POSICIONAL POR DEPARTAMENTO (SCOUTING) ---
+    st.markdown("---")
+    st.markdown("#### ⚽ Matriz Táctica: Aporte de Posiciones por Departamento de Origen")
+    st.markdown(
+        "Este gráfico de barras apiladas permite identificar qué posiciones"
+        " específicas aporta cada región o departamento al plantel."
+    )
+
+    df_dept_pos = (
+        df_unicos.groupby([col_dept_res, col_pos_res], as_index=False)
+        .agg(Cantidad=("Nombre del jugador", "count"))
+    )
+
+    if not df_dept_pos.empty:
+      fig_dept_pos = px.bar(
+          df_dept_pos,
+          x=col_dept_res,
+          y="Cantidad",
+          color=col_pos_res,
+          text="Cantidad",
+          title="<b>Distribución de Posiciones por Departamento de Origen</b>",
+          labels={
+              col_dept_res: "Departamento de Origen",
+              "Cantidad": "Nº de Jugadores",
+              col_pos_res: "Posición",
+          },
+          barmode="stack",
+          color_discrete_sequence=px.colors.qualitative.Prism,
+      )
+      fig_dept_pos.update_layout(
+          plot_bgcolor="rgba(0,0,0,0)",
+          paper_bgcolor="rgba(0,0,0,0)",
+          height=420,
+          margin=dict(l=20, r=20, t=40, b=20),
+          legend=dict(
+              orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+          ),
+      )
+      fig_dept_pos.update_traces(textposition="inside", textfont_size=11)
+      st.plotly_chart(fig_dept_pos, use_container_width=True)
 
     with st.expander("📋 Ver Listado Completo de Deportistas (Datos Únicos)"):
       st.dataframe(
