@@ -693,7 +693,6 @@ with tab2:
       "### 👥 Panel de Control Global y Análisis Táctico del Plantel"
   )
 
-  # Filtros por Posición
   col_pos_candidatas = [
       c
       for c in df_raw.columns
@@ -707,16 +706,11 @@ with tab2:
         "🔍 Filtrar Vista General por Posición:",
         options=todas_posiciones,
         default=todas_posiciones,
-        help=(
-            "Selecciona una o varias posiciones para aislar el análisis del"
-            " plantel."
-        ),
     )
     df_raw_filtered = df_raw[df_raw[col_pos].isin(pos_filtro)]
   else:
     df_raw_filtered = df_raw
 
-  # Top 5 Líderes del Plantel
   st.markdown("---")
   st.markdown("### 🏆 Top 5 Líderes del Plantel")
 
@@ -764,8 +758,6 @@ with tab2:
             " min</small>",
             unsafe_allow_html=True,
         )
-    else:
-      st.write("N/D")
 
   with top_c2:
     st.markdown("⚽ **Goleadores**")
@@ -784,8 +776,6 @@ with tab2:
               " goles</small>",
               unsafe_allow_html=True,
           )
-    else:
-      st.write("N/D")
 
   with top_c3:
     st.markdown("🛡️ **Recuperadores**")
@@ -803,8 +793,6 @@ with tab2:
             " rec.</small>",
             unsafe_allow_html=True,
         )
-    else:
-      st.write("N/D")
 
   with top_c4:
     st.markdown("⚡ **Mayor Player Load (Prom)**")
@@ -822,12 +810,8 @@ with tab2:
             " PL</small>",
             unsafe_allow_html=True,
         )
-    else:
-      st.write("N/D")
 
   st.markdown("---")
-
-  # --- GRÁFICO DE MINUTOS ---
   st.markdown("### ⏱️ Minutos Acumulados y Porcentaje de Participación")
 
   col_minutes_team = [
@@ -871,7 +855,6 @@ with tab2:
               "Porcentaje_Participacion": "% Participación",
           },
       )
-
       fig_min.update_layout(
           title=dict(
               text=(
@@ -888,167 +871,15 @@ with tab2:
           yaxis_title="<b>Deportista</b>",
           plot_bgcolor="rgba(0,0,0,0)",
           paper_bgcolor="rgba(0,0,0,0)",
-          font=dict(family="sans-serif", size=13, color="#334155"),
           height=max(450, len(df_plantel_min) * 32),
           margin=dict(l=20, r=20, t=90, b=20),
-          coloraxis_colorbar=dict(title="% Part."),
       )
-
       fig_min.update_traces(
           textfont_size=12, textangle=0, textposition="outside", cliponaxis=False
       )
-
       st.plotly_chart(fig_min, use_container_width=True)
-    else:
-      st.info("No hay datos disponibles para las posiciones seleccionadas.")
-  else:
-    st.warning("No se encontró la columna de minutos.")
 
-  st.markdown("---")
-
-  # --- MATRIZ DE DISPERSIÓN ---
-  st.markdown("### 📍 Matriz de Dispersión: Minutos vs. Carga Física (Player Load)")
-  st.markdown(
-      "Cruza el volumen de participación con la carga de trabajo total para"
-      " identificar perfiles físicos en el plantel."
-  )
-
-  df_scatter = (
-      df_raw_filtered.groupby([columna_nombre, col_pos], as_index=False)
-      .agg({col_min: "sum", "pl": "sum", "td": "sum", "hsr": "sum"})
-      .fillna(0)
-  )
-
-  if not df_scatter.empty:
-    fig_scatter = px.scatter(
-        df_scatter,
-        x=col_min,
-        y="pl",
-        color=col_pos,
-        text=columna_nombre,
-        labels={
-            col_min: "Minutos Totales Jugados",
-            "pl": "Player Load (PL) Acumulado",
-            col_pos: "Posición",
-        },
-        title=(
-            "<b>Matriz de Rendimiento: Minutos Totales vs. Player Load"
-            " Acumulado</b>"
-        ),
-    )
-    fig_scatter.update_traces(
-        textposition="top center", textfont_size=10, marker=dict(size=12)
-    )
-    fig_scatter.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        height=480,
-        margin=dict(l=20, r=20, t=60, b=20),
-        legend=dict(
-            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
-        ),
-    )
-    st.plotly_chart(fig_scatter, use_container_width=True)
-  else:
-    st.info(
-        "No hay datos suficientes para generar la matriz con los filtros"
-        " actuales."
-    )
-
-  st.markdown("---")
-
-  # --- MÓDULO TÁCTICO ---
-  st.markdown(
-      "### 🛡️ Rendimiento Táctico Colectivo: Intensidad Defensiva y"
-      " Recuperaciones"
-  )
-
-  col_fecha_candidatas = [
-      c
-      for c in df_raw_filtered.columns
-      if any(
-          k in str(c).lower() for k in ["fecha", "date", "jornada", "partido"]
-      )
-  ]
-  if col_fecha_candidatas:
-    f_col = col_fecha_candidatas[0]
-
-    cols_def_raw = {
-        "Recuperación": "Recuperaciones",
-        "Intercepciones": "Intercepciones",
-        "Success Entradas": "Entradas Exitosas",
-        "Success Duelos terrestres": "Duelos Terrestres Ganados",
-    }
-
-    exist_cols = {
-        k: v for k, v in cols_def_raw.items() if k in df_raw_filtered.columns
-    }
-
-    if exist_cols and not df_raw_filtered.empty:
-      df_equipo_tactico = df_raw_filtered.groupby(f_col, as_index=False)[
-          list(exist_cols.keys())
-      ].sum()
-      df_equipo_tactico = df_equipo_tactico.rename(columns=exist_cols)
-
-      fig_tactico = px.line(
-          df_equipo_tactico,
-          x=f_col,
-          y=list(exist_cols.values()),
-          markers=True,
-          labels={
-              f_col: "Jornada / Fecha",
-              "value": "Acciones Defensivas Totales",
-              "variable": "Métrica Táctica",
-          },
-          color_discrete_sequence=["#2e7d32", "#1976d2", "#d32f2f", "#f57c00"],
-      )
-
-      fig_tactico.update_layout(
-          title=dict(
-              text=(
-                  "<b>Evolución Colectiva de Acciones Defensivas por"
-                  " Fecha</b>"
-              ),
-              y=0.95,
-              x=0.5,
-              xanchor="center",
-              yanchor="bottom",
-              font=dict(size=16, color="#1e293b"),
-          ),
-          xaxis=dict(title="<b>Jornada / Fecha</b>", type="category"),
-          yaxis=dict(title="<b>Volumen de Acciones Colectivas</b>"),
-          plot_bgcolor="rgba(0,0,0,0)",
-          paper_bgcolor="rgba(0,0,0,0)",
-          font=dict(family="sans-serif", size=13, color="#334155"),
-          legend=dict(
-              orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
-          ),
-          height=420,
-          margin=dict(l=20, r=20, t=80, b=20),
-      )
-
-      st.plotly_chart(fig_tactico, use_container_width=True)
-
-      st.markdown(
-          """
-            <div style="background-color: #f8f9fa; border-left: 3px solid #2e7d32; padding: 12px 15px; border-radius: 4px; margin-top: 10px; font-size: 12px; color: #555; line-height: 1.5;">
-                <b>💡 Nota Metodológica & Contexto Táctico:</b> Los datos de este gráfico provienen de la agregación de los registros individuales por partido. 
-                <i>¿Por qué no mostramos PPDA clásico?</i> El cálculo tradicional requiere pases del oponente en construcción, una métrica externa no disponible en esta base interna. 
-                En su lugar, este módulo presenta el <b>Índice de Intensidad y Volumen Defensivo Colectivo</b> (Recuperaciones, Entradas e Intercepciones), cumpliendo el mismo rol analítico para medir la agresividad sin depender de datos ajenos.
-            </div>
-            """,
-          unsafe_allow_html=True,
-      )
-    else:
-      st.info(
-          "No hay datos suficientes para generar el gráfico táctico con los"
-          " filtros seleccionados."
-      )
-  else:
-    st.warning("No se detectó la columna de Fecha en el archivo.")
-
-
-# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (COLUMNAS BLINDADAS) ---
+# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (100% ROBUSTA) ---
 with tab3:
   st.markdown(
       "### 📊 Análisis Demográfico y Geográfico del Plantel (Jugadores Únicos)"
@@ -1060,7 +891,6 @@ with tab3:
       " plantilla."
   )
 
-  # Detección precisa e independiente de cada columna demográfica
   col_depto_cand = [
       c
       for c in df_raw.columns
@@ -1076,14 +906,23 @@ with tab3:
     c_mes = col_mes_cand[0]
     c_anio = col_anio_cand[0]
 
-    # Extraer tabla de jugadores únicos y limpiar nulos / espacios
+    # Extraer tabla de jugadores únicos sin eliminar filas con nulos
     df_unicos = (
         df_raw[[columna_nombre, c_depto, c_mes, c_anio, col_pos]]
         .drop_duplicates(subset=[columna_nombre])
-        .dropna(subset=[c_depto, c_mes, c_anio])
         .copy()
     )
-    df_unicos[c_depto] = df_unicos[c_depto].astype(str).str.strip().str.title()
+
+    # Llenar valores vacíos para que no fallen los conteos ni gráficos
+    df_unicos[c_depto] = (
+        df_unicos[c_depto]
+        .fillna("No Registrado")
+        .astype(str)
+        .str.strip()
+        .str.title()
+    )
+    df_unicos[c_mes] = df_unicos[c_mes].fillna("Desconocido")
+    df_unicos[c_anio] = df_unicos[c_anio].fillna(0)
 
 
     def mes_a_trimestre(mes):
@@ -1144,8 +983,6 @@ with tab3:
         )
         fig_geo.update_traces(textposition="outside")
         st.plotly_chart(fig_geo, use_container_width=True)
-      else:
-        st.info("No hay suficientes datos geográficos registrados.")
 
       with st.expander("🔍 Ver detalle de jugadores por Departamento"):
         if not df_geo.empty:
@@ -1169,6 +1006,7 @@ with tab3:
           "Trimestre 2 (Abr-Jun)",
           "Trimestre 3 (Jul-Sep)",
           "Trimestre 4 (Oct-Dic)",
+          "Desconocido",
       ]
       df_trim = (
           df_unicos["Trimestre_Nacimiento"]
@@ -1206,8 +1044,6 @@ with tab3:
         )
         fig_trim.update_traces(textposition="outside")
         st.plotly_chart(fig_trim, use_container_width=True)
-      else:
-        st.info("No hay datos de trimestre disponibles.")
 
     st.markdown("---")
     st.markdown("#### 🎂 Desglose por Año de Nacimiento y Edad del Plantel")
