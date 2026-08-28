@@ -1207,7 +1207,7 @@ with tab3:
         )
         st.dataframe(jug_anio_df, use_container_width=True)
 
-    # --- MÓDULO CORREGIDO: BRECHA FÍSICA Y TALENTOS PRECOCES ---
+    # --- MÓDULO BLINDADO: BRECHA FÍSICA Y TALENTOS PRECOCES ---
     st.markdown("---")
     st.markdown(
         "#### 🚀 Brecha Física y Detección de Talentos Precoces (por Año de"
@@ -1220,19 +1220,25 @@ with tab3:
     )
 
     if not df_raw.empty:
-      # EVITAR CONFLICTO DE NOMBRES EN EL MERGE
-      df_unicos_gps = (
-          df_unicos[[
-              "Nombre del jugador",
-              col_anio_res,
-              col_dept_res,
-              col_pos_res,
-          ]]
-          .rename(columns={col_pos_res: "Posicion_Unica"})
-          .copy()
-      )
+      # Crear un dataframe limpio de atributos unicos para evitar conflictos de nombres
+      df_unicos_gps = df_unicos[[
+          "Nombre del jugador",
+          col_anio_res,
+          col_dept_res,
+          col_pos_res,
+      ]].copy()
+      df_unicos_gps.columns = [
+          "Nombre_Clean",
+          "Anio_Nac",
+          "Depto_Unico",
+          "Pos_Unica",
+      ]
+
+      df_raw_clean = df_raw.copy()
+      df_raw_clean["Nombre_Clean"] = df_raw_clean[columna_nombre]
+
       df_gps_bio = pd.merge(
-          df_raw, df_unicos_gps, on=columna_nombre, how="inner"
+          df_raw_clean, df_unicos_gps, on="Nombre_Clean", how="inner"
       )
 
       gps_cols_candidates = {
@@ -1264,23 +1270,36 @@ with tab3:
             df_gps_bio[target_col], errors="coerce"
         ).fillna(0)
 
-        df_player_bio = df_gps_bio.groupby(
-            [columna_nombre, col_anio_res, "Posicion_Unica", col_dept_res],
-            as_index=False,
-        ).agg(
-            Valor_Pico=(target_col, "max"),
-            Valor_Promedio=(target_col, "mean"),
+        df_player_bio = (
+            df_gps_bio.groupby(
+                ["Nombre_Clean", "Anio_Nac", "Pos_Unica", "Depto_Unico"],
+                as_index=False,
+            )
+            .agg(
+                Valor_Pico=(target_col, "max"),
+                Valor_Promedio=(target_col, "mean"),
+            )
+            .rename(
+                columns={
+                    "Nombre_Clean": "Nombre del jugador",
+                    "Anio_Nac": "Año de Nacimiento",
+                    "Pos_Unica": "Posición",
+                    "Depto_Unico": "Departamento",
+                }
+            )
         )
-        df_player_bio[col_anio_res] = df_player_bio[col_anio_res].astype(int)
-        df_player_bio = df_player_bio[df_player_bio[col_anio_res] > 0]
+        df_player_bio["Año de Nacimiento"] = df_player_bio[
+            "Año de Nacimiento"
+        ].astype(int)
+        df_player_bio = df_player_bio[df_player_bio["Año de Nacimiento"] > 0]
 
         fig_brecha = px.box(
             df_player_bio,
-            x=df_player_bio[col_anio_res].astype(str),
+            x=df_player_bio["Año de Nacimiento"].astype(str),
             y="Valor_Pico",
-            color=df_player_bio[col_anio_res].astype(str),
+            color=df_player_bio["Año de Nacimiento"].astype(str),
             points="all",
-            hover_data=[columna_nombre, "Posicion_Unica", col_dept_res],
+            hover_data=["Nombre del jugador", "Posición", "Departamento"],
             labels={
                 "x": "Año de Nacimiento",
                 "Valor_Pico": f"Máximo Registro ({selected_gps_metric_name})",
@@ -1301,22 +1320,22 @@ with tab3:
         st.plotly_chart(fig_brecha, use_container_width=True)
 
         promedio_por_ano = (
-            df_player_bio.groupby(col_anio_res)["Valor_Pico"]
+            df_player_bio.groupby("Año de Nacimiento")["Valor_Pico"]
             .mean()
             .reset_index()
         )
         max_age_year = (
-            promedio_por_ano[col_anio_res].min()
+            promedio_por_ano["Año de Nacimiento"].min()
             if not promedio_por_ano.empty
             else 2007
         )
         oldest_avg = promedio_por_ano[
-            promedio_por_ano[col_anio_res] == max_age_year
+            promedio_por_ano["Año de Nacimiento"] == max_age_year
         ]["Valor_Pico"].values
         oldest_avg_val = oldest_avg[0] if len(oldest_avg) > 0 else 0
 
         precoces = df_player_bio[
-            (df_player_bio[col_anio_res] > max_age_year)
+            (df_player_bio["Año de Nacimiento"] > max_age_year)
             & (df_player_bio["Valor_Pico"] >= oldest_avg_val * 0.92)
         ]
 
@@ -1331,18 +1350,15 @@ with tab3:
           )
           st.dataframe(
               precoces[[
-                  columna_nombre,
-                  col_anio_res,
-                  "Posicion_Unica",
-                  col_dept_res,
+                  "Nombre del jugador",
+                  "Año de Nacimiento",
+                  "Posición",
+                  "Departamento",
                   "Valor_Pico",
               ]]
               .sort_values(by="Valor_Pico", ascending=False)
               .rename(
-                  columns={
-                      "Valor_Pico": f"Pico Máximo ({selected_gps_metric_name})",
-                      "Posicion_Unica": "Posición",
-                  }
+                  columns={"Valor_Pico": f"Pico Máximo ({selected_gps_metric_name})"}
               ),
               use_container_width=True,
           )
