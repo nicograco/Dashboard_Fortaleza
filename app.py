@@ -1207,7 +1207,7 @@ with tab3:
         )
         st.dataframe(jug_anio_df, use_container_width=True)
 
-    # --- NUEVO MÓDULO: BRECHA FÍSICA Y TALENTOS PRECOCES POR AÑO DE NACIMIENTO ---
+    # --- MÓDULO CORREGIDO: BRECHA FÍSICA Y TALENTOS PRECOCES ---
     st.markdown("---")
     st.markdown(
         "#### 🚀 Brecha Física y Detección de Talentos Precoces (por Año de"
@@ -1220,16 +1220,19 @@ with tab3:
     )
 
     if not df_raw.empty:
-      df_gps_bio = pd.merge(
-          df_raw,
+      # EVITAR CONFLICTO DE NOMBRES EN EL MERGE
+      df_unicos_gps = (
           df_unicos[[
               "Nombre del jugador",
               col_anio_res,
               col_dept_res,
               col_pos_res,
-          ]],
-          on=columna_nombre,
-          how="inner",
+          ]]
+          .rename(columns={col_pos_res: "Posicion_Unica"})
+          .copy()
+      )
+      df_gps_bio = pd.merge(
+          df_raw, df_unicos_gps, on=columna_nombre, how="inner"
       )
 
       gps_cols_candidates = {
@@ -1262,7 +1265,7 @@ with tab3:
         ).fillna(0)
 
         df_player_bio = df_gps_bio.groupby(
-            [columna_nombre, col_anio_res, col_pos_res, col_dept_res],
+            [columna_nombre, col_anio_res, "Posicion_Unica", col_dept_res],
             as_index=False,
         ).agg(
             Valor_Pico=(target_col, "max"),
@@ -1277,7 +1280,7 @@ with tab3:
             y="Valor_Pico",
             color=df_player_bio[col_anio_res].astype(str),
             points="all",
-            hover_data=[columna_nombre, col_pos_res, col_dept_res],
+            hover_data=[columna_nombre, "Posicion_Unica", col_dept_res],
             labels={
                 "x": "Año de Nacimiento",
                 "Valor_Pico": f"Máximo Registro ({selected_gps_metric_name})",
@@ -1297,7 +1300,6 @@ with tab3:
         )
         st.plotly_chart(fig_brecha, use_container_width=True)
 
-        # Análisis de talentos precoces
         promedio_por_ano = (
             df_player_bio.groupby(col_anio_res)["Valor_Pico"]
             .mean()
@@ -1331,13 +1333,16 @@ with tab3:
               precoces[[
                   columna_nombre,
                   col_anio_res,
-                  col_pos_res,
+                  "Posicion_Unica",
                   col_dept_res,
                   "Valor_Pico",
               ]]
               .sort_values(by="Valor_Pico", ascending=False)
               .rename(
-                  columns={"Valor_Pico": f"Pico Máximo ({selected_gps_metric_name})"}
+                  columns={
+                      "Valor_Pico": f"Pico Máximo ({selected_gps_metric_name})",
+                      "Posicion_Unica": "Posición",
+                  }
               ),
               use_container_width=True,
           )
