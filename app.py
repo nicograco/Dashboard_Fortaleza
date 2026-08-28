@@ -132,7 +132,7 @@ def limpiar_texto(texto):
   )
 
 
-# --- ENCABEZADO PRINCIPAL (SIN LA PALABRA CEIF) ---
+# --- ENCABEZADO PRINCIPAL ---
 st.markdown(
     """
     <div class="header-box">
@@ -1048,7 +1048,7 @@ with tab2:
     st.warning("No se detectó la columna de Fecha en el archivo.")
 
 
-# --- NUEVA PESTAÑA: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS ---
+# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (ROBUSTA) ---
 with tab3:
   st.markdown(
       "### 📊 Análisis Demográfico y Geográfico del Plantel (Jugadores Únicos)"
@@ -1060,16 +1060,13 @@ with tab3:
       " plantilla."
   )
 
-  # Detectar columnas necesarias para demografía
   col_depto_cand = [
       c
       for c in df_raw.columns
       if any(k in str(c).lower() for k in ["depto", "departamento"])
   ]
   col_mes_cand = [
-      c
-      for c in df_raw.columns
-      if any(k in str(c).lower() for k in ["mes", "nacimiento"])
+      c for c in df_raw.columns if "mes" in str(c).lower()
   ]
   col_anio_cand = [
       c
@@ -1082,15 +1079,16 @@ with tab3:
     c_mes = col_mes_cand[0]
     c_anio = col_anio_cand[0]
 
-    # Extraer tabla de jugadores únicos
+    # Extraer tabla de jugadores únicos y limpiar nulos / espacios
     df_unicos = (
         df_raw[[columna_nombre, c_depto, c_mes, c_anio, col_pos]]
         .drop_duplicates(subset=[columna_nombre])
+        .dropna(subset=[c_depto, c_mes, c_anio])
         .copy()
     )
+    df_unicos[c_depto] = df_unicos[c_depto].astype(str).str.strip().str.title()
 
 
-    # Función para convertir mes a trimestre
     def mes_a_trimestre(mes):
       if pd.isna(mes):
         return "Desconocido"
@@ -1119,51 +1117,56 @@ with tab3:
           .reset_index(name="Cantidad_Jugadores")
       )
       df_geo.columns = ["Departamento", "Cantidad_Jugadores"]
-      df_geo["Porcentaje"] = (
-          df_geo["Cantidad_Jugadores"] / df_geo["Cantidad_Jugadores"].sum()
-      ) * 100
+      total_jugadores_geo = df_geo["Cantidad_Jugadores"].sum()
+      
+      if total_jugadores_geo > 0:
+        df_geo["Porcentaje"] = (
+            df_geo["Cantidad_Jugadores"] / total_jugadores_geo
+        ) * 100
 
-      fig_geo = px.bar(
-          df_geo,
-          x="Porcentaje",
-          y="Departamento",
-          orientation="h",
-          text=df_geo["Porcentaje"].apply(lambda x: f"{x:.1f}%"),
-          color="Porcentaje",
-          color_continuous_scale="Reds",
-          labels={
-              "Porcentaje": "% del Plantel",
-              "Departamento": "Departamento de Origen",
-          },
-          title="<b>% de Jugadores por Departamento de Origen</b>",
-      )
-      fig_geo.update_layout(
-          plot_bgcolor="rgba(0,0,0,0)",
-          paper_bgcolor="rgba(0,0,0,0)",
-          height=380,
-          margin=dict(l=10, r=10, t=40, b=10),
-          showlegend=False,
-      )
-      fig_geo.update_traces(textposition="outside")
-      st.plotly_chart(fig_geo, use_container_width=True)
+        fig_geo = px.bar(
+            df_geo,
+            x="Porcentaje",
+            y="Departamento",
+            orientation="h",
+            text=df_geo["Porcentaje"].apply(lambda x: f"{x:.1f}%"),
+            color="Porcentaje",
+            color_continuous_scale="Reds",
+            labels={
+                "Porcentaje": "% del Plantel",
+                "Departamento": "Departamento de Origen",
+            },
+            title="<b>% de Jugadores por Departamento de Origen</b>",
+        )
+        fig_geo.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            height=380,
+            margin=dict(l=10, r=10, t=40, b=10),
+            showlegend=False,
+        )
+        fig_geo.update_traces(textposition="outside")
+        st.plotly_chart(fig_geo, use_container_width=True)
+      else:
+        st.info("No hay suficientes datos geográficos registrados.")
 
       with st.expander("🔍 Ver detalle de jugadores por Departamento"):
-        depto_sel = st.selectbox(
-            "Selecciona Departamento:",
-            df_geo["Departamento"].unique(),
-            key="sel_depto_exp",
-        )
-        jug_depto = df_unicos[df_unicos[c_depto] == depto_sel][
-            [columna_nombre, col_pos, c_mes, c_anio]
-        ]
-        st.dataframe(jug_depto, use_container_width=True)
+        if not df_geo.empty:
+          depto_sel = st.selectbox(
+              "Selecciona Departamento:",
+              df_geo["Departamento"].unique(),
+              key="sel_depto_exp",
+          )
+          jug_depto = df_unicos[df_unicos[c_depto] == depto_sel][
+              [columna_nombre, col_pos, c_mes, c_anio]
+          ]
+          st.dataframe(jug_depto, use_container_width=True)
 
     with col_trim:
       st.markdown(
           "#### 📅 Distribución por Trimestre y Año de Nacimiento"
       )
 
-      # Ordenar trimestres cronológicamente
       orden_trimestres = [
           "Trimestre 1 (Ene-Mar)",
           "Trimestre 2 (Abr-Jun)",
@@ -1177,32 +1180,37 @@ with tab3:
           .reset_index(name="Cantidad_Jugadores")
       )
       df_trim.columns = ["Trimestre", "Cantidad_Jugadores"]
-      df_trim["Porcentaje"] = (
-          df_trim["Cantidad_Jugadores"] / df_trim["Cantidad_Jugadores"].sum()
-      ) * 100
+      total_jugadores_trim = df_trim["Cantidad_Jugadores"].sum()
 
-      fig_trim = px.bar(
-          df_trim,
-          x="Trimestre",
-          y="Cantidad_Jugadores",
-          text=df_trim["Porcentaje"].apply(lambda x: f"{x:.1f}%"),
-          color="Cantidad_Jugadores",
-          color_continuous_scale="Blues",
-          labels={
-              "Cantidad_Jugadores": "Nº de Jugadores",
-              "Trimestre": "Trimestre de Nacimiento",
-          },
-          title="<b>Jugadores Nacidos por Trimestre del Año</b>",
-      )
-      fig_trim.update_layout(
-          plot_bgcolor="rgba(0,0,0,0)",
-          paper_bgcolor="rgba(0,0,0,0)",
-          height=380,
-          margin=dict(l=10, r=10, t=40, b=10),
-          showlegend=False,
-      )
-      fig_trim.update_traces(textposition="outside")
-      st.plotly_chart(fig_trim, use_container_width=True)
+      if total_jugadores_trim > 0:
+        df_trim["Porcentaje"] = (
+            df_trim["Cantidad_Jugadores"] / total_jugadores_trim
+        ) * 100
+
+        fig_trim = px.bar(
+            df_trim,
+            x="Trimestre",
+            y="Cantidad_Jugadores",
+            text=df_trim["Porcentaje"].apply(lambda x: f"{x:.1f}%"),
+            color="Cantidad_Jugadores",
+            color_continuous_scale="Blues",
+            labels={
+                "Cantidad_Jugadores": "Nº de Jugadores",
+                "Trimestre": "Trimestre de Nacimiento",
+            },
+            title="<b>Jugadores Nacidos por Trimestre del Año</b>",
+        )
+        fig_trim.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            height=380,
+            margin=dict(l=10, r=10, t=40, b=10),
+            showlegend=False,
+        )
+        fig_trim.update_traces(textposition="outside")
+        st.plotly_chart(fig_trim, use_container_width=True)
+      else:
+        st.info("No hay datos de trimestre disponibles.")
 
     st.markdown("---")
     st.markdown("#### 🎂 Desglose por Año de Nacimiento y Edad del Plantel")
@@ -1214,27 +1222,28 @@ with tab3:
     )
     df_anio[c_anio] = df_anio[c_anio].astype(int).astype(str)
 
-    fig_anio = px.bar(
-        df_anio,
-        x=c_anio,
-        y="Cantidad_Jugadores",
-        text="Cantidad_Jugadores",
-        color="Cantidad_Jugadores",
-        color_continuous_scale="Viridis",
-        labels={
-            c_anio: "Año de Nacimiento",
-            "Cantidad_Jugadores": "Número de Jugadores",
-        },
-        title="<b>Estructura de Edades / Año de Nacimiento del Plantel</b>",
-    )
-    fig_anio.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        height=350,
-        margin=dict(l=20, r=20, t=40, b=20),
-    )
-    fig_anio.update_traces(textposition="outside")
-    st.plotly_chart(fig_anio, use_container_width=True)
+    if not df_anio.empty:
+      fig_anio = px.bar(
+          df_anio,
+          x=c_anio,
+          y="Cantidad_Jugadores",
+          text="Cantidad_Jugadores",
+          color="Cantidad_Jugadores",
+          color_continuous_scale="Viridis",
+          labels={
+              c_anio: "Año de Nacimiento",
+              "Cantidad_Jugadores": "Número de Jugadores",
+          },
+          title="<b>Estructura de Edades / Año de Nacimiento del Plantel</b>",
+      )
+      fig_anio.update_layout(
+          plot_bgcolor="rgba(0,0,0,0)",
+          paper_bgcolor="rgba(0,0,0,0)",
+          height=350,
+          margin=dict(l=20, r=20, t=40, b=20),
+      )
+      fig_anio.update_traces(textposition="outside")
+      st.plotly_chart(fig_anio, use_container_width=True)
 
     with st.expander("📋 Ver Listado Completo de Deportistas (Datos Únicos)"):
       st.dataframe(
