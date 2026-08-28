@@ -404,7 +404,7 @@ with tab1:
 
   st.markdown("---")
 
-  # --- NUEVA OPCIÓN 1: COMPARADOR CARA A CARA (HEAD-TO-HEAD) ---
+  # --- COMPARADOR CARA A CARA (HEAD-TO-HEAD) CON ANÁLISIS AUTOMÁTICO ---
   st.markdown("### ⚔️ Comparador Cara a Cara (Head-to-Head)")
   st.markdown(
       "Compara al jugador seleccionado con otro compañero del plantel para"
@@ -478,6 +478,57 @@ with tab1:
           delta=f"{int(td_a - td_b)} m vs Rival",
       )
       st.caption(f"Rival: {int(td_b)} m")
+
+    # --- ANÁLISIS AUTOMÁTICO INTELIGENTE DEL CARA A CARA ---
+    diff_min = int(min_a - min_b)
+    diff_gol = int(gol_a - gol_b)
+    diff_pl = pl_a - pl_b
+
+    texto_min = (
+        f"<b>{jugador_seleccionado}</b> supera en <b>{diff_min} minutos</b> de"
+        f" juego a <b>{rival_seleccionado}</b>."
+        if diff_min > 0
+        else f"<b>{rival_seleccionado}</b> supera en <b>{abs(diff_min)} minutos</b> de juego a <b>{jugador_seleccionado}</b>."
+    )
+    if diff_min == 0:
+        texto_min = (
+            f"Ambos deportistas registran exactamente el mismo acumulado de"
+            f" minutos (<b>{int(min_a)} min</b>)."
+        )
+
+    texto_gol = (
+        f"En aporte ofensivo, <b>{jugador_seleccionado}</b> anota una ventaja de"
+        f" <b>{diff_gol} goles</b> sobre su compañero."
+        if diff_gol > 0
+        else (
+            f"En aporte ofensivo, <b>{rival_seleccionado}</b> supera por"
+            f" <b>{abs(diff_gol)} goles</b>."
+            if diff_gol < 0
+            else "Ambos mantienen paridad en goles anotados."
+        )
+    )
+
+    texto_fisico = (
+        f"Físicamente, el promedio de Player Load por partido muestra mayor"
+        f" exigencia para <b>{jugador_seleccionado}</b>"
+        if diff_pl > 0
+        else f"Físicamente, el promedio de Player Load por partido muestra mayor exigencia para <b>{rival_seleccionado}</b>"
+    )
+
+    st.markdown(
+        f"""
+        <div style="background-color: #f1f3f5; border-left: 4px solid #990000; padding: 16px; border-radius: 6px; margin-top: 15px;">
+            <h4 style="margin: 0 0 8px 0; color: #111;">🧠 Conclusión Automatizada del Duelo (Cuerpo Técnico)</h4>
+            <ul style="margin: 0; padding-left: 20px; color: #333; font-size: 14px; line-height: 1.6;">
+                <li><b>Participación Competitiva:</b> {texto_min}</li>
+                <li><b>Rendimiento Ofensivo:</b> {texto_gol}</li>
+                <li><b>Demanda de Carga Física:</b> {texto_fisico} (Δ {abs(diff_pl):.1f} PL de diferencia promedio).</li>
+                <li><b>Implicación Táctica:</b> Este balance permite contrastar perfiles para decisiones de rotación o asignación de roles específicos dentro del modelo de juego.</li>
+            </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
   st.markdown("---")
 
@@ -846,7 +897,7 @@ with tab2:
 
   st.markdown("---")
 
-  # --- NUEVA OPCIÓN 2: MATRIZ DE DISPERSIÓN (MINUTOS VS PLAYER LOAD) ---
+  # --- MATRIZ DE DISPERSIÓN (MINUTOS VS PLAYER LOAD) ---
   st.markdown("### 📍 Matriz de Dispersión: Minutos vs. Carga Física (Player Load)")
   st.markdown(
       "Cruza el volumen de participación con la carga de trabajo total para"
