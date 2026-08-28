@@ -2,6 +2,7 @@ import os
 import unicodedata
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -129,7 +130,6 @@ tokens_jugador = [t for t in nombre_limpio_jugador.split() if len(t) >= 3]
 mejor_archivo = None
 mejor_ruta = None
 
-# 1. Buscar coincidencia exacta con el nombre completo o parcial en el archivo
 for archivo, carpeta in archivos_fotos:
   nombre_sin_ext = limpiar_texto(os.path.splitext(archivo)[0])
   if nombre_sin_ext == nombre_limpio_jugador:
@@ -137,7 +137,6 @@ for archivo, carpeta in archivos_fotos:
     mejor_ruta = os.path.join(carpeta, archivo)
     break
 
-# 2. Si no hay coincidencia exacta, buscar por tokens (apellido o nombre suelto)
 if not mejor_archivo:
   for token in tokens_jugador:
     for archivo, carpeta in archivos_fotos:
@@ -382,6 +381,95 @@ with col_gps:
       st.metric("Desaceleraciones (dec)", dec)
   else:
     st.warning("Sin datos GPS registrados.")
+
+st.markdown("---")
+
+# --- GRÁFICO PROFESIONAL DE MINUTOS Y PARTICIPACIÓN DEL PLANTEL ---
+st.markdown("### ⏱️ Minutos Acumulados y Porcentaje de Participación del Plantel")
+
+col_minutes_team = [
+    c
+    for c in df_raw.columns
+    if any(
+        k in str(c).lower() for k in ["minuto", "min", "jugados", "tiempo"]
+    )
+]
+
+if col_minutes_team:
+  m_col = col_minutes_team[0]
+  df_raw[m_col] = pd.to_numeric(df_raw[m_col], errors="coerce").fillna(0)
+
+  df_plantel_min = (
+      df_raw.groupby(columna_nombre, as_index=False)[m_col]
+      .sum()
+      .sort_values(by=m_col, ascending=True)
+  )
+
+  max_possible_minutes = st.sidebar.slider(
+      "Máx. Minutos Posibles (Torneo):",
+      min_value=90,
+      max_value=3000,
+      value=1530,
+      step=90,
+      help=(
+          "Configura el total de minutos posibles disputados en el torneo"
+          " para calcular el 100% de participación."
+      ),
+  )
+
+  df_plantel_min["Porcentaje_Participacion"] = (
+      df_plantel_min[m_col] / max_possible_minutes
+  ) * 100
+
+  fig_min = px.bar(
+      df_plantel_min,
+      x=m_col,
+      y=columna_nombre,
+      orientation="h",
+      text=df_plantel_min["Porcentaje_Participacion"].apply(
+          lambda x: f"{x:.1f}%"
+      ),
+      color="Porcentaje_Participacion",
+      color_continuous_scale="Teal",
+      labels={
+          m_col: "Minutos Totales",
+          columna_nombre: "Deportista",
+          "Porcentaje_Participacion": "% Participación",
+      },
+  )
+
+  fig_min.update_layout(
+      title=dict(
+          text=(
+              "<b>Minutos Acumulados por Deportista vs. Capacidad Total"
+              f" ({max_possible_minutes} min)</b>"
+          ),
+          y=0.98,
+          x=0.5,
+          xanchor="center",
+          yanchor="bottom",
+          font=dict(size=16, color="#1e293b"),
+      ),
+      xaxis_title="<b>Minutos Totales en Cancha</b>",
+      yaxis_title="<b>Deportista</b>",
+      plot_bgcolor="rgba(0,0,0,0)",
+      paper_bgcolor="rgba(0,0,0,0)",
+      font=dict(family="sans-serif", size=13, color="#334155"),
+      height=max(450, len(df_plantel_min) * 32),
+      margin=dict(l=20, r=20, t=90, b=20),
+      coloraxis_colorbar=dict(title="% Part."),
+  )
+
+  fig_min.update_traces(
+      textfont_size=12, textangle=0, textposition="outside", cliponaxis=False
+  )
+
+  st.plotly_chart(fig_min, use_container_width=True)
+else:
+  st.warning(
+      "No se encontró la columna de minutos para generar la gráfica del"
+      " plantel."
+  )
 
 st.markdown("---")
 
