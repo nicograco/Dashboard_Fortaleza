@@ -888,7 +888,7 @@ with tab2:
       st.plotly_chart(fig_min, use_container_width=True)
 
 
-# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (CON SCOUTING Y MATRICES TÁCTICAS) ---
+# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y SCOUTING ---
 with tab3:
   st.markdown(
       "### 📊 Análisis Demográfico, Geográfico & Scouting del Plantel"
@@ -1207,47 +1207,76 @@ with tab3:
         )
         st.dataframe(jug_anio_df, use_container_width=True)
 
-    # --- NUEVO GRÁFICO: APORTE POSICIONAL POR DEPARTAMENTO (SCOUTING) ---
+    # --- NUEVA VISUALIZACIÓN CLARA: MAPA JERÁRQUICO Y FICHA DE SCOUTING POR DEPARTAMENTO ---
     st.markdown("---")
-    st.markdown("#### ⚽ Matriz Táctica: Aporte de Posiciones por Departamento de Origen")
+    st.markdown("#### 🗺️ Mapa Jerárquico de Talento: Región, Posición y Jugador")
     st.markdown(
-        "Este gráfico de barras apiladas permite identificar qué posiciones"
-        " específicas aporta cada región o departamento al plantel."
+        "Este mapa interactivo desglosa de manera limpia y sin saturación"
+        " visual el aporte de cada departamento agrupado por posición y"
+        " nombre."
     )
 
-    df_dept_pos = (
-        df_unicos.groupby([col_dept_res, col_pos_res], as_index=False)
-        .agg(Cantidad=("Nombre del jugador", "count"))
+    fig_treemap = px.treemap(
+        df_unicos,
+        path=[col_dept_res, col_pos_res, "Nombre del jugador"],
+        color="Departamento",
+        color_discrete_sequence=px.colors.qualitative.Pastel,
+        title="<b>Estructura de Talento por Región y Posición</b>",
+    )
+    fig_treemap.update_layout(
+        height=450, margin=dict(l=10, r=10, t=40, b=10)
+    )
+    st.plotly_chart(fig_treemap, use_container_width=True)
+
+    st.markdown("#### 🔍 Ficha de Scouting por Departamento")
+    st.markdown(
+        "Selecciona un departamento para ver el desglose claro y directo de"
+        " cuántos jugadores aporta y en qué posiciones:"
     )
 
-    if not df_dept_pos.empty:
-      fig_dept_pos = px.bar(
-          df_dept_pos,
-          x=col_dept_res,
-          y="Cantidad",
-          color=col_pos_res,
-          text="Cantidad",
-          title="<b>Distribución de Posiciones por Departamento de Origen</b>",
-          labels={
-              col_dept_res: "Departamento de Origen",
-              "Cantidad": "Nº de Jugadores",
-              col_pos_res: "Posición",
-          },
-          barmode="stack",
-          color_discrete_sequence=px.colors.qualitative.Prism,
-      )
-      fig_dept_pos.update_layout(
-          plot_bgcolor="rgba(0,0,0,0)",
-          paper_bgcolor="rgba(0,0,0,0)",
-          height=420,
-          margin=dict(l=20, r=20, t=40, b=20),
-          legend=dict(
-              orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
-          ),
-      )
-      fig_dept_pos.update_traces(textposition="inside", textfont_size=11)
-      st.plotly_chart(fig_dept_pos, use_container_width=True)
+    col_scout_1, col_scout_2 = st.columns([1, 2])
 
+    with col_scout_1:
+      depto_scout = st.selectbox(
+          "Selecciona Departamento de Origen:",
+          sorted(df_unicos[col_dept_res].unique()),
+          key="scout_depto_sel",
+      )
+
+    df_depto_filtrado = df_unicos[df_unicos[col_dept_res] == depto_scout]
+    total_d_jugadores = len(df_depto_filtrado)
+    pct_d_plantel = (
+        (total_d_jugadores / len(df_unicos)) * 100
+        if len(df_unicos) > 0
+        else 0
+    )
+
+    pos_conteo = df_depto_filtrado[col_pos_res].value_counts().to_dict()
+    resumen_posiciones_str = ", ".join(
+        [f"**{cnt} {pos}**" for pos, cnt in pos_conteo.items()]
+    )
+
+    with col_scout_2:
+      st.markdown(
+          f"**Resumen de Captación — {depto_scout}:**<br>"
+          f"• **Aporte total:** {total_d_jugadores} jugadores ({pct_d_plantel:.1f}%"
+          f" del plantel).<br>"
+          f"• **Perfil Táctico / Posiciones:** {resumen_posiciones_str}.",
+          unsafe_allow_html=True,
+      )
+
+    st.dataframe(
+        df_depto_filtrado[[
+            "Nombre del jugador",
+            col_pos_res,
+            col_mes_res,
+            col_anio_res,
+            "Trimestre_Nacimiento",
+        ]],
+        use_container_width=True,
+    )
+
+    st.markdown("---")
     with st.expander("📋 Ver Listado Completo de Deportistas (Datos Únicos)"):
       st.dataframe(
           df_unicos[[
