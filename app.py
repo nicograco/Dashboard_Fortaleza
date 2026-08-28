@@ -136,11 +136,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Creamos pestañas profesionales para separar la ficha individual de la vista general
+# Pestañas profesionales
 tab1, tab2 = st.tabs([
     "👤 Ficha Individual del Deportista",
-    "👥 Vista General del Plantel (Minutos y Participación)",
-] )
+    "👥 Vista General del Plantel & Análisis Táctico",
+])
 
 with tab1:
   # Búsqueda recursiva de foto para el jugador seleccionado
@@ -552,7 +552,6 @@ with tab1:
       st.warning("No hay registros disponibles.")
 
 with tab2:
-  # GRÁFICO PROFESIONAL DE MINUTOS Y PARTICIPACIÓN DEL PLANTEL (EN SU PROPIA PESTAÑA)
   st.markdown(
       "### ⏱️ Minutos Acumulados y Porcentaje de Participación del Plantel"
   )
@@ -633,3 +632,102 @@ with tab2:
         "No se encontró la columna de minutos para generar la gráfica del"
         " plantel."
     )
+
+  st.markdown("---")
+
+  # --- NUEVA SECCIÓN TÁCTICA NIVEL EUROPA: INTENSIDAD DEFENSIVA Y PRESIÓN POR PARTIDO ---
+  st.markdown(
+      "### 🛡️ Rendimiento Táctico Colectivo: Intensidad Defensiva y"
+      " Recuperaciones por Partido"
+  )
+  st.markdown(
+      "Análisis global del equipo en fase defensiva (Recuperaciones,"
+      " Intercepciones, Entradas Exitosas y Duelos Terrestres Ganados) en cada"
+      " jornada del torneo."
+  )
+
+  col_fecha_candidatas = [
+      c
+      for c in df_raw.columns
+      if any(
+          k in str(c).lower() for k in ["fecha", "date", "jornada", "partido"]
+      )
+  ]
+  if col_fecha_candidatas:
+    f_col = col_fecha_candidatas[0]
+
+    # Agrupar métricas defensivas clave por fecha a nivel de equipo
+    cols_def_raw = {
+        "Recuperación": "Recuperaciones",
+        "Intercepciones": "Intercepciones",
+        "Success Entradas": "Entradas Exitosas",
+        "Success Duelos terrestres": "Duelos Terrestres Ganados",
+    }
+
+    exist_cols = {k: v for k, v in cols_def_raw.items() if k in df_raw.columns}
+
+    if exist_cols:
+      df_equipo_tactico = df_raw.groupby(f_col, as_index=False)[
+          list(exist_cols.keys())
+      ].sum()
+      df_equipo_tactico = df_equipo_tactico.rename(columns=exist_cols)
+
+      # Gráfico de líneas múltiple de nivel europeo para el comportamiento defensivo
+      fig_tactico = px.line(
+          df_equipo_tactico,
+          x=f_col,
+          y=list(exist_cols.values()),
+          markers=True,
+          labels={
+              f_col: "Jornada / Fecha",
+              "value": "Acciones Defensivas Totales",
+              "variable": "Métrica Táctica",
+          },
+          color_discrete_sequence=["#2e7d32", "#1976d2", "#d32f2f", "#f57c00"],
+      )
+
+      fig_tactico.update_layout(
+          title=dict(
+              text=(
+                  "<b>Evolución Colectiva de Acciones Defensivas por"
+                  " Fecha</b>"
+              ),
+              y=0.95,
+              x=0.5,
+              xanchor="center",
+              yanchor="bottom",
+              font=dict(size=16, color="#1e293b"),
+          ),
+          xaxis=dict(title="<b>Jornada / Fecha</b>", type="category"),
+          yaxis=dict(title="<b>Volumen de Acciones Colectivas</b>"),
+          plot_bgcolor="rgba(0,0,0,0)",
+          paper_bgcolor="rgba(0,0,0,0)",
+          font=dict(family="sans-serif", size=13, color="#334155"),
+          legend=dict(
+              orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+          ),
+          height=420,
+          margin=dict(l=20, r=20, t=80, b=20),
+      )
+
+      st.plotly_chart(fig_tactico, use_container_width=True)
+
+      # Nota analítica para el cuerpo técnico
+      st.markdown(
+          """
+            <div style="background-color: #f1f3f5; border-left: 4px solid #2e7d32; padding: 16px; border-radius: 6px; margin-top: 10px;">
+                <h4 style="margin: 0 0 8px 0; color: #111;">📋 Nota Metodológica para el Cuerpo Técnico</h4>
+                <p style="margin: 0; color: #333; font-size: 14px; line-height: 1.5;">
+                    Este gráfico refleja el volumen absoluto de acciones defensivas exitosas del equipo en cada partido. Picos altos en <b>Recuperaciones</b> y <b>Entradas Exitosas</b> coinciden con partidos de alta presión en bloque medio-alto, permitiendo al entrenador evaluar la constancia defensiva a lo largo del torneo.
+                </p>
+            </div>
+            """,
+          unsafe_allow_html=True,
+      )
+    else:
+      st.info(
+          "No se encontraron suficientes columnas de acciones defensivas en la"
+          " base de datos."
+      )
+  else:
+    st.warning("No se detectó la columna de Fecha en el archivo.")
