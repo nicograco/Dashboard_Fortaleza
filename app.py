@@ -553,17 +553,149 @@ with tab1:
 
 with tab2:
   st.markdown(
-      "### ⏱️ Minutos Acumulados y Porcentaje de Participación del Plantel"
+      "### 👥 Panel de Control Global y Análisis Táctico del Plantel"
   )
-  st.markdown(
-      "Esta vista general permite analizar el acumulado de minutos de todos"
-      " los deportistas frente al total posible del torneo configurado en la"
-      " barra lateral."
+
+  # --- OPCIÓN 2: FILTROS POR POSICIÓN EN LA VISTA GENERAL ---
+  col_pos_candidatas = [
+      c
+      for c in df_raw.columns
+      if any(k in str(c).lower() for k in ["pos", "posición", "position"])
+  ]
+  col_pos = col_pos_candidatas[0] if col_pos_candidatas else df_raw.columns[2]
+
+  if col_pos in df_raw.columns:
+    todas_posiciones = sorted(df_raw[col_pos].dropna().unique())
+    pos_filtro = st.multiselect(
+        "🔍 Filtrar Vista General por Posición:",
+        options=todas_posiciones,
+        default=todas_posiciones,
+        help=(
+            "Selecciona una o varias posiciones para aislar el análisis del"
+            " plantel."
+        ),
+    )
+    df_raw_filtered = df_raw[df_raw[col_pos].isin(pos_filtro)]
+  else:
+    df_raw_filtered = df_raw
+
+  # --- OPCIÓN 1: TOP 5 LÍDERES DEL PLANTEL (SALÓN DE LA FAMA) ---
+  st.markdown("---")
+  st.markdown("### 🏆 Top 5 Líderes del Plantel")
+
+  col_min = next(
+      (
+          c
+          for c in df_raw_filtered.columns
+          if any(k in c.lower() for k in ["min. jug", "minutos", "min"])
+      ),
+      None,
   )
+  col_goles = next(
+      (
+          c
+          for c in df_raw_filtered.columns
+          if "gol" in c.lower() and "auto" not in c.lower()
+      ),
+      None,
+  )
+  col_recup = next(
+      (
+          c
+          for c in df_raw_filtered.columns
+          if "recuperación" in c.lower() or "recup" in c.lower()
+      ),
+      None,
+  )
+  col_pl = next((c for c in df_raw_filtered.columns if c.lower() == "pl"), None)
+
+  top_c1, top_c2, top_c3, top_c4 = st.columns(4)
+
+  with top_c1:
+    st.markdown("⏱️ **Más Minutos**")
+    if col_min and not df_raw_filtered.empty:
+      t_min = (
+          df_raw_filtered.groupby(columna_nombre)[col_min]
+          .sum()
+          .reset_index()
+          .sort_values(by=col_min, ascending=False)
+          .head(5)
+      )
+      for idx, row in t_min.iterrows():
+        st.markdown(
+            f"<small>• **{row[columna_nombre]}**: {int(row[col_min])}"
+            " min</small>",
+            unsafe_allow_html=True,
+        )
+    else:
+      st.write("N/D")
+
+  with top_c2:
+    st.markdown("⚽ **Goleadores**")
+    if col_goles and not df_raw_filtered.empty:
+      t_gol = (
+          df_raw_filtered.groupby(columna_nombre)[col_goles]
+          .sum()
+          .reset_index()
+          .sort_values(by=col_goles, ascending=False)
+          .head(5)
+      )
+      for idx, row in t_gol.iterrows():
+        if row[col_goles] > 0:
+          st.markdown(
+              f"<small>• **{row[columna_nombre]}**: {int(row[col_goles])}"
+              " goles</small>",
+              unsafe_allow_html=True,
+          )
+    else:
+      st.write("N/D")
+
+  with top_c3:
+    st.markdown("🛡️ **Recuperadores**")
+    if col_recup and not df_raw_filtered.empty:
+      t_rec = (
+          df_raw_filtered.groupby(columna_nombre)[col_recup]
+          .sum()
+          .reset_index()
+          .sort_values(by=col_recup, ascending=False)
+          .head(5)
+      )
+      for idx, row in t_rec.iterrows():
+        st.markdown(
+            f"<small>• **{row[columna_nombre]}**: {int(row[col_recup])}"
+            " rec.</small>",
+            unsafe_allow_html=True,
+        )
+    else:
+      st.write("N/D")
+
+  with top_c4:
+    st.markdown("⚡ **Mayor Player Load (Prom)**")
+    if col_pl and not df_raw_filtered.empty:
+      t_pl = (
+          df_raw_filtered.groupby(columna_nombre)[col_pl]
+          .mean()
+          .reset_index()
+          .sort_values(by=col_pl, ascending=False)
+          .head(5)
+      )
+      for idx, row in t_pl.iterrows():
+        st.markdown(
+            f"<small>• **{row[columna_nombre]}**: {row[col_pl]:.1f}"
+            " PL</small>",
+            unsafe_allow_html=True,
+        )
+    else:
+      st.write("N/D")
+
+  st.markdown("---")
+
+  # --- GRÁFICO DE MINUTOS (FILTRADO POR POSICIÓN) ---
+  st.markdown("### ⏱️ Minutos Acumulados y Porcentaje de Participación")
 
   col_minutes_team = [
       c
-      for c in df_raw.columns
+      for c in df_raw_filtered.columns
       if any(
           k in str(c).lower() for k in ["minuto", "min", "jugados", "tiempo"]
       )
@@ -571,10 +703,12 @@ with tab2:
 
   if col_minutes_team:
     m_col = col_minutes_team[0]
-    df_raw[m_col] = pd.to_numeric(df_raw[m_col], errors="coerce").fillna(0)
+    df_raw_filtered[m_col] = pd.to_numeric(
+        df_raw_filtered[m_col], errors="coerce"
+    ).fillna(0)
 
     df_plantel_min = (
-        df_raw.groupby(columna_nombre, as_index=False)[m_col]
+        df_raw_filtered.groupby(columna_nombre, as_index=False)[m_col]
         .sum()
         .sort_values(by=m_col, ascending=True)
     )
@@ -583,72 +717,70 @@ with tab2:
         df_plantel_min[m_col] / max_possible_minutes
     ) * 100
 
-    fig_min = px.bar(
-        df_plantel_min,
-        x=m_col,
-        y=columna_nombre,
-        orientation="h",
-        text=df_plantel_min["Porcentaje_Participacion"].apply(
-            lambda x: f"{x:.1f}%"
-        ),
-        color="Porcentaje_Participacion",
-        color_continuous_scale="Teal",
-        labels={
-            m_col: "Minutos Totales",
-            columna_nombre: "Deportista",
-            "Porcentaje_Participacion": "% Participación",
-        },
-    )
+    if not df_plantel_min.empty:
+      fig_min = px.bar(
+          df_plantel_min,
+          x=m_col,
+          y=columna_nombre,
+          orientation="h",
+          text=df_plantel_min["Porcentaje_Participacion"].apply(
+              lambda x: f"{x:.1f}%"
+          ),
+          color="Porcentaje_Participacion",
+          color_continuous_scale="Teal",
+          labels={
+              m_col: "Minutos Totales",
+              columna_nombre: "Deportista",
+              "Porcentaje_Participacion": "% Participación",
+          },
+      )
 
-    fig_min.update_layout(
-        title=dict(
-            text=(
-                "<b>Minutos Acumulados por Deportista vs. Capacidad Total"
-                f" ({max_possible_minutes} min)</b>"
-            ),
-            y=0.98,
-            x=0.5,
-            xanchor="center",
-            yanchor="bottom",
-            font=dict(size=16, color="#1e293b"),
-        ),
-        xaxis_title="<b>Minutos Totales en Cancha</b>",
-        yaxis_title="<b>Deportista</b>",
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="sans-serif", size=13, color="#334155"),
-        height=max(500, len(df_plantel_min) * 32),
-        margin=dict(l=20, r=20, t=90, b=20),
-        coloraxis_colorbar=dict(title="% Part."),
-    )
+      fig_min.update_layout(
+          title=dict(
+              text=(
+                  "<b>Minutos Acumulados por Deportista vs. Capacidad Total"
+                  f" ({max_possible_minutes} min)</b>"
+              ),
+              y=0.98,
+              x=0.5,
+              xanchor="center",
+              yanchor="bottom",
+              font=dict(size=16, color="#1e293b"),
+          ),
+          xaxis_title="<b>Minutos Totales en Cancha</b>",
+          yaxis_title="<b>Deportista</b>",
+          plot_bgcolor="rgba(0,0,0,0)",
+          paper_bgcolor="rgba(0,0,0,0)",
+          font=dict(family="sans-serif", size=13, color="#334155"),
+          height=max(450, len(df_plantel_min) * 32),
+          margin=dict(l=20, r=20, t=90, b=20),
+          coloraxis_colorbar=dict(title="% Part."),
+      )
 
-    fig_min.update_traces(
-        textfont_size=12, textangle=0, textposition="outside", cliponaxis=False
-    )
+      fig_min.update_traces(
+          textfont_size=12, textangle=0, textposition="outside", cliponaxis=False
+      )
 
-    st.plotly_chart(fig_min, use_container_width=True)
+      st.plotly_chart(fig_min, use_container_width=True)
+    else:
+      st.info(
+          "No hay datos disponibles para las posiciones seleccionadas en el"
+          " filtro."
+      )
   else:
-    st.warning(
-        "No se encontró la columna de minutos para generar la gráfica del"
-        " plantel."
-    )
+    st.warning("No se encontró la columna de minutos.")
 
   st.markdown("---")
 
-  # --- MÓDULO TÁCTICO NIVEL EUROPA: INTENSIDAD DEFENSIVA Y PRESIÓN POR PARTIDO ---
+  # --- MÓDULO TÁCTICO NIVEL EUROPA (FILTRADO POR POSICIÓN) ---
   st.markdown(
       "### 🛡️ Rendimiento Táctico Colectivo: Intensidad Defensiva y"
-      " Recuperaciones por Partido"
-  )
-  st.markdown(
-      "Análisis global del equipo en fase defensiva (Recuperaciones,"
-      " Intercepciones, Entradas Exitosas y Duelos Terrestres Ganados) en cada"
-      " jornada del torneo."
+      " Recuperaciones"
   )
 
   col_fecha_candidatas = [
       c
-      for c in df_raw.columns
+      for c in df_raw_filtered.columns
       if any(
           k in str(c).lower() for k in ["fecha", "date", "jornada", "partido"]
       )
@@ -663,10 +795,12 @@ with tab2:
         "Success Duelos terrestres": "Duelos Terrestres Ganados",
     }
 
-    exist_cols = {k: v for k, v in cols_def_raw.items() if k in df_raw.columns}
+    exist_cols = {
+        k: v for k, v in cols_def_raw.items() if k in df_raw_filtered.columns
+    }
 
-    if exist_cols:
-      df_equipo_tactico = df_raw.groupby(f_col, as_index=False)[
+    if exist_cols and not df_raw_filtered.empty:
+      df_equipo_tactico = df_raw_filtered.groupby(f_col, as_index=False)[
           list(exist_cols.keys())
       ].sum()
       df_equipo_tactico = df_equipo_tactico.rename(columns=exist_cols)
@@ -710,21 +844,20 @@ with tab2:
 
       st.plotly_chart(fig_tactico, use_container_width=True)
 
-      # Nota metodológica e informativa en letra pequeña
       st.markdown(
           """
             <div style="background-color: #f8f9fa; border-left: 3px solid #2e7d32; padding: 12px 15px; border-radius: 4px; margin-top: 10px; font-size: 12px; color: #555; line-height: 1.5;">
-                <b>💡 Nota Metodológica & Contexto Táctico:</b> Los datos de este gráfico provienen de la agregación de los registros individuales por partido de la base de datos de rendimiento. 
-                <i>¿Por qué no mostramos PPDA clásico?</i> El cálculo tradicional de PPDA (Pases Permitidos por Acción Defensiva) requiere el número exacto de pases del oponente en construcción, una métrica externa que no se encuentra en esta base interna. 
-                En su lugar, este módulo presenta el <b>Índice de Intensidad y Volumen Defensivo Colectivo</b> (Recuperaciones, Entradas e Intercepciones de nuestro equipo), el cual orienta de forma directa sobre la agresividad tras pérdida, el comportamiento defensivo por jornada y cumple el mismo rol analítico que busca el cuerpo técnico para medir la presión sin depender de métricas ajenas.
+                <b>💡 Nota Metodológica & Contexto Táctico:</b> Los datos de este gráfico provienen de la agregación de los registros individuales por partido. 
+                <i>¿Por qué no mostramos PPDA clásico?</i> El cálculo tradicional requiere pases del oponente en construcción, una métrica externa no disponible en esta base interna. 
+                En su lugar, este módulo presenta el <b>Índice de Intensidad y Volumen Defensivo Colectivo</b> (Recuperaciones, Entradas e Intercepciones), cumpliendo el mismo rol analítico para medir la agresividad sin depender de datos ajenos.
             </div>
             """,
           unsafe_allow_html=True,
       )
     else:
       st.info(
-          "No se encontraron suficientes columnas de acciones defensivas en la"
-          " base de datos."
+          "No hay datos suficientes para generar el gráfico táctico con los"
+          " filtros seleccionados."
       )
   else:
     st.warning("No se detectó la columna de Fecha en el archivo.")
