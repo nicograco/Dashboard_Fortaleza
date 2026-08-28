@@ -888,7 +888,7 @@ with tab2:
       st.plotly_chart(fig_min, use_container_width=True)
 
 
-# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y SCOUTING ---
+# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA & SCOUTING ---
 with tab3:
   st.markdown(
       "### 📊 Análisis Demográfico, Geográfico & Scouting del Plantel"
@@ -1207,7 +1207,152 @@ with tab3:
         )
         st.dataframe(jug_anio_df, use_container_width=True)
 
-    # --- NUEVA VISUALIZACIÓN CLARA: MAPA JERÁRQUICO Y FICHA DE SCOUTING POR DEPARTAMENTO ---
+    # --- NUEVO MÓDULO: BRECHA FÍSICA Y TALENTOS PRECOCES POR AÑO DE NACIMIENTO ---
+    st.markdown("---")
+    st.markdown(
+        "#### 🚀 Brecha Física y Detección de Talentos Precoces (por Año de"
+        " Nacimiento)"
+    )
+    st.markdown(
+        "Cruza la cronología (edad) con la biología real (métricas pico de GPS)"
+        " para identificar perfiles físicos destacados y talentos precoces que"
+        " compiten al nivel de los mayores."
+    )
+
+    if not df_raw.empty:
+      df_gps_bio = pd.merge(
+          df_raw,
+          df_unicos[[
+              "Nombre del jugador",
+              col_anio_res,
+              col_dept_res,
+              col_pos_res,
+          ]],
+          on=columna_nombre,
+          how="inner",
+      )
+
+      gps_cols_candidates = {
+          "Velocidad Máxima (km/h)": ["maxvel", "velocidad", "vel_max"],
+          "Alta Intensidad - HSR (m)": [
+              "hsr",
+              "alta intensidad",
+              "high speed",
+          ],
+          "Aceleraciones (Acc)": ["acc", "aceleracion"],
+          "Player Load (PL)": ["pl", "player load"],
+      }
+
+      selected_gps_metric_name = st.selectbox(
+          "Selecciona Métrica Física para Analizar la Brecha:",
+          list(gps_cols_candidates.keys()),
+          key="sel_brecha_metrica",
+      )
+
+      target_col = None
+      keywords = gps_cols_candidates[selected_gps_metric_name]
+      for c in df_gps_bio.columns:
+        if any(k in str(c).lower() for k in keywords):
+          target_col = c
+          break
+
+      if target_col:
+        df_gps_bio[target_col] = pd.to_numeric(
+            df_gps_bio[target_col], errors="coerce"
+        ).fillna(0)
+
+        df_player_bio = df_gps_bio.groupby(
+            [columna_nombre, col_anio_res, col_pos_res, col_dept_res],
+            as_index=False,
+        ).agg(
+            Valor_Pico=(target_col, "max"),
+            Valor_Promedio=(target_col, "mean"),
+        )
+        df_player_bio[col_anio_res] = df_player_bio[col_anio_res].astype(int)
+        df_player_bio = df_player_bio[df_player_bio[col_anio_res] > 0]
+
+        fig_brecha = px.box(
+            df_player_bio,
+            x=df_player_bio[col_anio_res].astype(str),
+            y="Valor_Pico",
+            color=df_player_bio[col_anio_res].astype(str),
+            points="all",
+            hover_data=[columna_nombre, col_pos_res, col_dept_res],
+            labels={
+                "x": "Año de Nacimiento",
+                "Valor_Pico": f"Máximo Registro ({selected_gps_metric_name})",
+                "color": "Año",
+            },
+            title=(
+                "<b>Distribución de Picos de"
+                f" {selected_gps_metric_name} según Año de Nacimiento</b>"
+            ),
+        )
+        fig_brecha.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            height=400,
+            showlegend=False,
+            margin=dict(l=20, r=20, t=40, b=20),
+        )
+        st.plotly_chart(fig_brecha, use_container_width=True)
+
+        # Análisis de talentos precoces
+        promedio_por_ano = (
+            df_player_bio.groupby(col_anio_res)["Valor_Pico"]
+            .mean()
+            .reset_index()
+        )
+        max_age_year = (
+            promedio_por_ano[col_anio_res].min()
+            if not promedio_por_ano.empty
+            else 2007
+        )
+        oldest_avg = promedio_por_ano[
+            promedio_por_ano[col_anio_res] == max_age_year
+        ]["Valor_Pico"].values
+        oldest_avg_val = oldest_avg[0] if len(oldest_avg) > 0 else 0
+
+        precoces = df_player_bio[
+            (df_player_bio[col_anio_res] > max_age_year)
+            & (df_player_bio["Valor_Pico"] >= oldest_avg_val * 0.92)
+        ]
+
+        if not precoces.empty:
+          st.markdown(
+              f"##### ⚡ Detección Automática de Talentos Precoces ({selected_gps_metric_name})"
+          )
+          st.markdown(
+              f"💡 **Hallazgo de Scouting:** Se identificaron **{len(precoces)} jugadores jóvenes** "
+              f"(categorías posteriores a {max_age_year}) que alcanzan registros físicos cercanos o superiores "
+              f"al promedio de la categoría mayor ({max_age_year}). Estos perfiles muestran gran potencial de proyección:"
+          )
+          st.dataframe(
+              precoces[[
+                  columna_nombre,
+                  col_anio_res,
+                  col_pos_res,
+                  col_dept_res,
+                  "Valor_Pico",
+              ]]
+              .sort_values(by="Valor_Pico", ascending=False)
+              .rename(
+                  columns={"Valor_Pico": f"Pico Máximo ({selected_gps_metric_name})"}
+              ),
+              use_container_width=True,
+          )
+        else:
+          st.info(
+              "Bajo el dintel actual, los registros físicos respetan estrictamente"
+              " la cronología de edad."
+          )
+      else:
+        st.warning(
+            "No se detectaron métricas numéricas de GPS compatibles para este"
+            " análisis de brecha."
+        )
+
+    # --- MAPA JERÁRQUICO Y FICHA DE SCOUTING ---
     st.markdown("---")
     st.markdown("#### 🗺️ Mapa Jerárquico de Talento: Región, Posición y Jugador")
     st.markdown(
