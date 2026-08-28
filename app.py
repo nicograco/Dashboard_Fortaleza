@@ -45,13 +45,13 @@ st.markdown(
 def cargar_datos():
   xls = pd.ExcelFile("DATOS INDIVIDUALES.xlsx")
 
-  # 1. Pestaña individual (para partidos, métricas, mes y año de nacimiento)
+  # 1. Pestaña individual (para partidos y métricas de rendimiento)
   try:
     df_ind = pd.read_excel(xls, sheet_name="individual")
   except:
     df_ind = pd.read_excel(xls, sheet_name=0)
 
-  # 2. Pestaña Resumen_Jugadores (para el departamento exacto)
+  # 2. Pestaña Resumen_Jugadores (para la demografía exacta de cada jugador)
   try:
     df_res = pd.read_excel(xls, sheet_name="Resumen_Jugadores")
   except:
@@ -888,72 +888,57 @@ with tab2:
       st.plotly_chart(fig_min, use_container_width=True)
 
 
-# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (CRUCE PERFECTO) ---
+# --- PESTAÑA 3: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS (USANDO Resumen_Jugadores DIRECTAMENTE) ---
 with tab3:
   st.markdown(
       "### 📊 Análisis Demográfico y Geográfico del Plantel (Jugadores Únicos)"
   )
   st.markdown(
-      "Este módulo cruza la **pestaña Resumen_Jugadores** (para obtener el"
-      " departamento) y la **pestaña individual** (para obtener el año, mes y"
-      " trimestre de nacimiento exacto)."
+      "Este módulo utiliza directamente la pestaña **Resumen_Jugadores** para"
+      " extraer los datos reales de departamento, mes de nacimiento y año de"
+      " nacimiento de cada deportista."
   )
 
-  if not df_resumen.empty and not df_raw.empty:
-    # 1. Obtener departamentos de Resumen_Jugadores
-    df_deptos = (
-        df_resumen[["Nombre del jugador", "Departamento"]]
-        .dropna(subset=["Nombre del jugador"])
-        .copy()
-    )
-    df_deptos = df_deptos[
-        ~df_deptos["Nombre del jugador"]
+  if not df_resumen.empty:
+    # Limpiar y filtrar resumen (excluyendo unknown_24 y nulos)
+    df_unicos = df_resumen.dropna(subset=["Nombre del jugador"]).copy()
+    df_unicos = df_unicos[
+        ~df_unicos["Nombre del jugador"]
         .str.contains("unknown|N/D", case=False, na=False)
     ].copy()
-    df_deptos["Departamento"] = (
-        df_deptos["Departamento"]
+
+    col_dept_res = next(
+        (c for c in df_unicos.columns if "departamento" in str(c).lower()),
+        "Departamento",
+    )
+    col_mes_res = next(
+        (c for c in df_unicos.columns if "mes" in str(c).lower()),
+        "Mes de Nacimiento",
+    )
+    col_anio_res = next(
+        (c for c in df_unicos.columns if "año" in str(c).lower() or "ano" in str(c).lower()),
+        "Año de Nacimiento",
+    )
+    col_pos_res = next(
+        (c for c in df_unicos.columns if "posición" in str(c).lower()),
+        "Posición",
+    )
+
+    df_unicos[col_dept_res] = (
+        df_unicos[col_dept_res]
         .fillna("No Registrado")
         .astype(str)
         .str.strip()
         .str.title()
     )
-
-    # 2. Obtener mes y año de nacimiento de la pestaña individual
-    col_mes_ind = next(
-        (c for c in df_raw.columns if "mes" in str(c).lower()),
-        "Mes de Nacimiento",
-    )
-    col_anio_ind = next(
-        (c for c in df_raw.columns if "año" in str(c).lower() or "ano" in str(c).lower()),
-        "Año de Nacimiento",
-    )
-    col_pos_ind = next(
-        (c for c in df_raw.columns if "posición" in str(c).lower()), "Posición"
-    )
-
-    df_nac = (
-        df_raw[[columna_nombre, col_mes_ind, col_anio_ind, col_pos_ind]]
-        .drop_duplicates(subset=[columna_nombre])
-        .copy()
-    )
-    df_nac = df_nac[
-        ~df_nac[columna_nombre]
-        .str.contains("unknown|N/D", case=False, na=False)
-    ].copy()
-
-    df_nac[col_mes_ind] = df_nac[col_mes_ind].fillna("Desconocido")
-    df_nac[col_anio_ind] = pd.to_numeric(
-        df_nac[col_anio_ind], errors="coerce"
+    df_unicos[col_mes_res] = df_unicos[col_mes_res].fillna("Desconocido").astype(str).str.strip().str.title()
+    df_unicos[col_anio_res] = pd.to_numeric(
+        df_unicos[col_anio_res], errors="coerce"
     ).fillna(0)
-
-    # 3. Cruzar ambas fuentes por nombre de jugador
-    df_unicos = pd.merge(
-        df_deptos, df_nac, left_on="Nombre del jugador", right_on=columna_nombre, how="inner"
-    )
 
 
     def mes_a_trimestre(mes):
-      if pd.isna(mes):
+      if pd.isna(mes) or str(mes).lower() in ["desconocido", "nan", "nat"]:
         return "Desconocido"
       m = str(mes).strip().lower()
       if any(k in m for k in ["enero", "febrero", "marzo"]):
@@ -967,7 +952,7 @@ with tab3:
       return "Desconocido"
 
 
-    df_unicos["Trimestre_Nacimiento"] = df_unicos[col_mes_ind].apply(
+    df_unicos["Trimestre_Nacimiento"] = df_unicos[col_mes_res].apply(
         mes_a_trimestre
     )
 
@@ -977,7 +962,7 @@ with tab3:
     with col_geo:
       st.markdown("#### 🗺️ Distribución Geográfica por Departamento")
       df_geo = (
-          df_unicos["Departamento"]
+          df_unicos[col_dept_res]
           .value_counts()
           .reset_index(name="Cantidad_Jugadores")
       )
@@ -1020,8 +1005,8 @@ with tab3:
               df_geo["Departamento"].unique(),
               key="sel_depto_exp",
           )
-          jug_depto = df_unicos[df_unicos["Departamento"] == depto_sel][
-              ["Nombre del jugador", col_pos_ind, col_mes_ind, col_anio_ind]
+          jug_depto = df_unicos[df_unicos[col_dept_res] == depto_sel][
+              ["Nombre del jugador", col_pos_res, col_mes_res, col_anio_res]
           ]
           st.dataframe(jug_depto, use_container_width=True)
 
@@ -1030,9 +1015,8 @@ with tab3:
           "#### 📅 Distribución por Trimestre y Año de Nacimiento"
       )
 
-      # Filtro interactivo opcional por Año de Nacimiento para los trimestres
       anios_disponibles = sorted(
-          [int(a) for a in df_unicos[col_anio_ind].unique() if a > 0]
+          [int(a) for a in df_unicos[col_anio_res].unique() if a > 0]
       )
       anio_filtro_trim = st.selectbox(
           "Filtrar Trimestres por Año de Nacimiento:",
@@ -1043,7 +1027,7 @@ with tab3:
       df_trim_source = df_unicos
       if anio_filtro_trim != "Todos los Años":
         df_trim_source = df_unicos[
-            df_unicos[col_anio_ind] == float(anio_filtro_trim)
+            df_unicos[col_anio_res] == float(anio_filtro_trim)
         ]
 
       orden_trimestres = [
@@ -1063,14 +1047,14 @@ with tab3:
 
       if total_jugadores_trim > 0:
         df_trim["Porcentaje"] = (
-            df_trim["Cantidad_Jugadores"] / total_jugadores_trim
+            df_trim["Cantidad_Jugadores"] / max(1, total_jugadores_trim)
         ) * 100
 
         fig_trim = px.bar(
             df_trim,
             x="Trimestre",
             y="Cantidad_Jugadores",
-            text=df_trim["Cantidad_Jugadores"],
+            text="Cantidad_Jugadores",
             color="Cantidad_Jugadores",
             color_continuous_scale="Blues",
             labels={
@@ -1096,23 +1080,23 @@ with tab3:
     st.markdown("#### 🎂 Desglose por Año de Nacimiento y Edad del Plantel")
 
     df_anio = (
-        df_unicos.groupby(col_anio_ind, as_index=False)
+        df_unicos.groupby(col_anio_res, as_index=False)
         .agg(Cantidad_Jugadores=("Nombre del jugador", "count"))
-        .sort_values(by=col_anio_ind)
+        .sort_values(by=col_anio_res)
     )
-    df_anio = df_anio[df_anio[col_anio_ind] > 0].copy()
-    df_anio[col_anio_ind] = df_anio[col_anio_ind].astype(int).astype(str)
+    df_anio = df_anio[df_anio[col_anio_res] > 0].copy()
+    df_anio[col_anio_res] = df_anio[col_anio_res].astype(int).astype(str)
 
     if not df_anio.empty:
       fig_anio = px.bar(
           df_anio,
-          x=col_anio_ind,
+          x=col_anio_res,
           y="Cantidad_Jugadores",
           text="Cantidad_Jugadores",
           color="Cantidad_Jugadores",
           color_continuous_scale="Viridis",
           labels={
-              col_anio_ind: "Año de Nacimiento",
+              col_anio_res: "Año de Nacimiento",
               "Cantidad_Jugadores": "Número de Jugadores",
           },
           title="<b>Estructura de Edades / Año de Nacimiento del Plantel</b>",
@@ -1130,13 +1114,13 @@ with tab3:
       st.dataframe(
           df_unicos[[
               "Nombre del jugador",
-              col_pos_ind,
-              "Departamento",
-              col_mes_ind,
-              col_anio_ind,
+              col_pos_res,
+              col_dept_res,
+              col_mes_res,
+              col_anio_res,
               "Trimestre_Nacimiento",
           ]],
           use_container_width=True,
       )
   else:
-    st.warning("No se pudieron cargar los datos de las pestañas.")
+    st.warning("No se encontró la pestaña 'Resumen_Jugadores' en el archivo.")
