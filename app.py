@@ -404,6 +404,83 @@ with tab1:
 
   st.markdown("---")
 
+  # --- NUEVA OPCIÓN 1: COMPARADOR CARA A CARA (HEAD-TO-HEAD) ---
+  st.markdown("### ⚔️ Comparador Cara a Cara (Head-to-Head)")
+  st.markdown(
+      "Compara al jugador seleccionado con otro compañero del plantel para"
+      " evaluar diferencias clave en la temporada."
+  )
+
+  col_h1, col_h2 = st.columns(2)
+  with col_h1:
+    st.markdown(f"**👤 Jugador A (Actual):** `{jugador_seleccionado}`")
+  with col_h2:
+    lista_rivales = [j for j in lista_jugadores if j != jugador_seleccionado]
+    rival_seleccionado = st.selectbox(
+        "Selecciona Jugador B para comparar:",
+        lista_rivales,
+        key="select_rival_h2h",
+    )
+
+  df_rival = df_raw[df_raw[columna_nombre] == rival_seleccionado]
+
+  if not df_jugador.empty and not df_rival.empty:
+
+    def get_sum_j(df_j, keywords):
+      for col in df_j.columns:
+        if any(k in str(col).lower() for k in keywords):
+          try:
+            return df_j[col].sum()
+          except:
+            pass
+      return 0
+
+    def get_mean_j(df_j, keywords):
+      for col in df_j.columns:
+        if any(k in str(col).lower() for k in keywords):
+          try:
+            return df_j[col].mean()
+          except:
+            pass
+      return 0.0
+
+    min_a, min_b = get_sum_j(df_jugador, ["min"]), get_sum_j(df_rival, ["min"])
+    gol_a, gol_b = get_sum_j(df_jugador, ["gol"]), get_sum_j(df_rival, ["gol"])
+    pl_a, pl_b = get_mean_j(df_jugador, ["pl"]), get_mean_j(df_rival, ["pl"])
+    td_a, td_b = get_sum_j(df_jugador, ["td"]), get_sum_j(df_rival, ["td"])
+
+    cc1, cc2, cc3, cc4 = st.columns(4)
+    with cc1:
+      st.metric(
+          "Minutos Totales",
+          f"{int(min_a)} min",
+          delta=f"{int(min_a - min_b)} vs {rival_seleccionado}",
+      )
+      st.caption(f"Rival: {int(min_b)} min")
+    with cc2:
+      st.metric(
+          "Goles Temporada",
+          f"{int(gol_a)}",
+          delta=f"{int(gol_a - gol_b)} vs Rival",
+      )
+      st.caption(f"Rival: {int(gol_b)} goles")
+    with cc3:
+      st.metric(
+          "Player Load (Prom)",
+          f"{pl_a:.1f}",
+          delta=f"{pl_a - pl_b:.1f} vs Rival",
+      )
+      st.caption(f"Rival: {pl_b:.1f} PL")
+    with cc4:
+      st.metric(
+          "Distancia Total (Prom)",
+          f"{int(td_a)} m",
+          delta=f"{int(td_a - td_b)} m vs Rival",
+      )
+      st.caption(f"Rival: {int(td_b)} m")
+
+  st.markdown("---")
+
   st.markdown("### 📈 Evolución Longitudinal por Partido (Selección de Métricas)")
 
   if not df_jugador.empty and len(cols_numericas) >= 2:
@@ -556,7 +633,7 @@ with tab2:
       "### 👥 Panel de Control Global y Análisis Táctico del Plantel"
   )
 
-  # --- OPCIÓN 2: FILTROS POR POSICIÓN EN LA VISTA GENERAL ---
+  # Filtros por Posición
   col_pos_candidatas = [
       c
       for c in df_raw.columns
@@ -579,7 +656,7 @@ with tab2:
   else:
     df_raw_filtered = df_raw
 
-  # --- OPCIÓN 1: TOP 5 LÍDERES DEL PLANTEL (SALÓN DE LA FAMA) ---
+  # Top 5 Líderes del Plantel (Salón de la Fama)
   st.markdown("---")
   st.markdown("### 🏆 Top 5 Líderes del Plantel")
 
@@ -763,16 +840,64 @@ with tab2:
 
       st.plotly_chart(fig_min, use_container_width=True)
     else:
-      st.info(
-          "No hay datos disponibles para las posiciones seleccionadas en el"
-          " filtro."
-      )
+      st.info("No hay datos disponibles para las posiciones seleccionadas.")
   else:
     st.warning("No se encontró la columna de minutos.")
 
   st.markdown("---")
 
-  # --- MÓDULO TÁCTICO NIVEL EUROPA (FILTRADO POR POSICIÓN) ---
+  # --- NUEVA OPCIÓN 2: MATRIZ DE DISPERSIÓN (MINUTOS VS PLAYER LOAD) ---
+  st.markdown("### 📍 Matriz de Dispersión: Minutos vs. Carga Física (Player Load)")
+  st.markdown(
+      "Cruza el volumen de participación con la carga de trabajo total para"
+      " identificar perfiles físicos en el plantel."
+  )
+
+  df_scatter = (
+      df_raw_filtered.groupby([columna_nombre, col_pos], as_index=False)
+      .agg({col_min: "sum", "pl": "sum", "td": "sum", "hsr": "sum"})
+      .fillna(0)
+  )
+
+  if not df_scatter.empty:
+    fig_scatter = px.scatter(
+        df_scatter,
+        x=col_min,
+        y="pl",
+        color=col_pos,
+        text=columna_nombre,
+        labels={
+            col_min: "Minutos Totales Jugados",
+            "pl": "Player Load (PL) Acumulado",
+            col_pos: "Posición",
+        },
+        title=(
+            "<b>Matriz de Rendimiento: Minutos Totales vs. Player Load"
+            " Acumulado</b>"
+        ),
+    )
+    fig_scatter.update_traces(
+        textposition="top center", textfont_size=10, marker=dict(size=12)
+    )
+    fig_scatter.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        height=480,
+        margin=dict(l=20, r=20, t=60, b=20),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+        ),
+    )
+    st.plotly_chart(fig_scatter, use_container_width=True)
+  else:
+    st.info(
+        "No hay datos suficientes para generar la matriz con los filtros"
+        " actuales."
+    )
+
+  st.markdown("---")
+
+  # --- MÓDULO TÁCTICO NIVEL EUROPA ---
   st.markdown(
       "### 🛡️ Rendimiento Táctico Colectivo: Intensidad Defensiva y"
       " Recuperaciones"
