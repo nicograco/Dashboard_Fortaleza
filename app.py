@@ -635,7 +635,7 @@ with tab2:
 
   st.markdown("---")
 
-  # --- NUEVA SECCIÓN TÁCTICA NIVEL EUROPA: INTENSIDAD DEFENSIVA Y PRESIÓN POR PARTIDO ---
+  # --- MÓDULO TÁCTICO NIVEL EUROPA: INTENSIDAD DEFENSIVA Y PRESIÓN POR PARTIDO ---
   st.markdown(
       "### 🛡️ Rendimiento Táctico Colectivo: Intensidad Defensiva y"
       " Recuperaciones por Partido"
@@ -656,7 +656,6 @@ with tab2:
   if col_fecha_candidatas:
     f_col = col_fecha_candidatas[0]
 
-    # Agrupar métricas defensivas clave por fecha a nivel de equipo
     cols_def_raw = {
         "Recuperación": "Recuperaciones",
         "Intercepciones": "Intercepciones",
@@ -672,7 +671,6 @@ with tab2:
       ].sum()
       df_equipo_tactico = df_equipo_tactico.rename(columns=exist_cols)
 
-      # Gráfico de líneas múltiple de nivel europeo para el comportamiento defensivo
       fig_tactico = px.line(
           df_equipo_tactico,
           x=f_col,
@@ -712,14 +710,13 @@ with tab2:
 
       st.plotly_chart(fig_tactico, use_container_width=True)
 
-      # Nota analítica para el cuerpo técnico
+      # Nota metodológica e informativa en letra pequeña
       st.markdown(
           """
-            <div style="background-color: #f1f3f5; border-left: 4px solid #2e7d32; padding: 16px; border-radius: 6px; margin-top: 10px;">
-                <h4 style="margin: 0 0 8px 0; color: #111;">📋 Nota Metodológica para el Cuerpo Técnico</h4>
-                <p style="margin: 0; color: #333; font-size: 14px; line-height: 1.5;">
-                    Este gráfico refleja el volumen absoluto de acciones defensivas exitosas del equipo en cada partido. Picos altos en <b>Recuperaciones</b> y <b>Entradas Exitosas</b> coinciden con partidos de alta presión en bloque medio-alto, permitiendo al entrenador evaluar la constancia defensiva a lo largo del torneo.
-                </p>
+            <div style="background-color: #f8f9fa; border-left: 3px solid #2e7d32; padding: 12px 15px; border-radius: 4px; margin-top: 10px; font-size: 12px; color: #555; line-height: 1.5;">
+                <b>💡 Nota Metodológica & Contexto Táctico:</b> Los datos de este gráfico provienen de la agregación de los registros individuales por partido de la base de datos de rendimiento. 
+                <i>¿Por qué no mostramos PPDA clásico?</i> El cálculo tradicional de PPDA (Pases Permitidos por Acción Defensiva) requiere el número exacto de pases del oponente en construcción, una métrica externa que no se encuentra en esta base interna. 
+                En su lugar, este módulo presenta el <b>Índice de Intensidad y Volumen Defensivo Colectivo</b> (Recuperaciones, Entradas e Intercepciones de nuestro equipo), el cual orienta de forma directa sobre la agresividad tras pérdida, el comportamiento defensivo por jornada y cumple el mismo rol analítico que busca el cuerpo técnico para medir la presión sin depender de métricas ajenas.
             </div>
             """,
           unsafe_allow_html=True,
