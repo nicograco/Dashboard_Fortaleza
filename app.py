@@ -64,6 +64,13 @@ except Exception as e:
   st.error(f"Error al leer el Excel: {e}")
   st.stop()
 
+# --- BARRA LATERAL CON ESCUDO OFICIAL ---
+st.sidebar.markdown("---")
+if os.path.exists("escudo_fortaleza.png"):
+  st.sidebar.image("escudo_fortaleza.png", use_container_width=True)
+else:
+  st.sidebar.info("💡 Coloca 'escudo_fortaleza.png' en la carpeta.")
+
 st.sidebar.markdown("### ⚙️ Panel de Control")
 st.sidebar.markdown("---")
 
@@ -125,7 +132,7 @@ def limpiar_texto(texto):
   )
 
 
-# --- ENCABEZADO PRINCIPAL ---
+# --- ENCABEZADO PRINCIPAL (SIN LA PALABRA CEIF) ---
 st.markdown(
     """
     <div class="header-box">
@@ -137,9 +144,10 @@ st.markdown(
 )
 
 # Pestañas profesionales
-tab1, tab2 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
     "👤 Ficha Individual del Deportista",
     "👥 Vista General del Plantel & Análisis Táctico",
+    "📊 Demografía, Geografía & Nacimientos",
 ])
 
 with tab1:
@@ -153,6 +161,8 @@ with tab1:
       if f.startswith("."):
         continue
       if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+        if "escudo" in f.lower():
+          continue
         archivos_fotos.append((f, root))
 
   nombre_limpio_jugador = limpiar_texto(jugador_seleccionado)
@@ -404,7 +414,7 @@ with tab1:
 
   st.markdown("---")
 
-  # --- COMPARADOR CARA A CARA (HEAD-TO-HEAD) CON ANÁLISIS AUTOMÁTICO ---
+  # --- COMPARADOR CARA A CARA ---
   st.markdown("### ⚔️ Comparador Cara a Cara (Head-to-Head)")
   st.markdown(
       "Compara al jugador seleccionado con otro compañero del plantel para"
@@ -479,7 +489,6 @@ with tab1:
       )
       st.caption(f"Rival: {int(td_b)} m")
 
-    # --- ANÁLISIS AUTOMÁTICO INTELIGENTE DEL CARA A CARA ---
     diff_min = int(min_a - min_b)
     diff_gol = int(gol_a - gol_b)
     diff_pl = pl_a - pl_b
@@ -491,10 +500,10 @@ with tab1:
         else f"<b>{rival_seleccionado}</b> supera en <b>{abs(diff_min)} minutos</b> de juego a <b>{jugador_seleccionado}</b>."
     )
     if diff_min == 0:
-        texto_min = (
-            f"Ambos deportistas registran exactamente el mismo acumulado de"
-            f" minutos (<b>{int(min_a)} min</b>)."
-        )
+      texto_min = (
+          f"Ambos deportistas registran exactamente el mismo acumulado de"
+          f" minutos (<b>{int(min_a)} min</b>)."
+      )
 
     texto_gol = (
         f"En aporte ofensivo, <b>{jugador_seleccionado}</b> anota una ventaja de"
@@ -707,7 +716,7 @@ with tab2:
   else:
     df_raw_filtered = df_raw
 
-  # Top 5 Líderes del Plantel (Salón de la Fama)
+  # Top 5 Líderes del Plantel
   st.markdown("---")
   st.markdown("### 🏆 Top 5 Líderes del Plantel")
 
@@ -818,7 +827,7 @@ with tab2:
 
   st.markdown("---")
 
-  # --- GRÁFICO DE MINUTOS (FILTRADO POR POSICIÓN) ---
+  # --- GRÁFICO DE MINUTOS ---
   st.markdown("### ⏱️ Minutos Acumulados y Porcentaje de Participación")
 
   col_minutes_team = [
@@ -897,7 +906,7 @@ with tab2:
 
   st.markdown("---")
 
-  # --- MATRIZ DE DISPERSIÓN (MINUTOS VS PLAYER LOAD) ---
+  # --- MATRIZ DE DISPERSIÓN ---
   st.markdown("### 📍 Matriz de Dispersión: Minutos vs. Carga Física (Player Load)")
   st.markdown(
       "Cruza el volumen de participación con la carga de trabajo total para"
@@ -948,7 +957,7 @@ with tab2:
 
   st.markdown("---")
 
-  # --- MÓDULO TÁCTICO NIVEL EUROPA ---
+  # --- MÓDULO TÁCTICO ---
   st.markdown(
       "### 🛡️ Rendimiento Táctico Colectivo: Intensidad Defensiva y"
       " Recuperaciones"
@@ -1037,3 +1046,203 @@ with tab2:
       )
   else:
     st.warning("No se detectó la columna de Fecha en el archivo.")
+
+
+# --- NUEVA PESTAÑA: DEMOGRAFÍA, GEOGRAFÍA Y NACIMIENTOS ---
+with tab3:
+  st.markdown(
+      "### 📊 Análisis Demográfico y Geográfico del Plantel (Jugadores Únicos)"
+  )
+  st.markdown(
+      "Este módulo analiza la procedencia departamental y la distribución por"
+      " trimestres y años de nacimiento de los deportistas, eliminando"
+      " duplicados por partido para mostrar estadísticas reales de la"
+      " plantilla."
+  )
+
+  # Detectar columnas necesarias para demografía
+  col_depto_cand = [
+      c
+      for c in df_raw.columns
+      if any(k in str(c).lower() for k in ["depto", "departamento"])
+  ]
+  col_mes_cand = [
+      c
+      for c in df_raw.columns
+      if any(k in str(c).lower() for k in ["mes", "nacimiento"])
+  ]
+  col_anio_cand = [
+      c
+      for c in df_raw.columns
+      if any(k in str(c).lower() for k in ["año", "ano"])
+  ]
+
+  if col_depto_cand and col_mes_cand and col_anio_cand:
+    c_depto = col_depto_cand[0]
+    c_mes = col_mes_cand[0]
+    c_anio = col_anio_cand[0]
+
+    # Extraer tabla de jugadores únicos
+    df_unicos = (
+        df_raw[[columna_nombre, c_depto, c_mes, c_anio, col_pos]]
+        .drop_duplicates(subset=[columna_nombre])
+        .copy()
+    )
+
+
+    # Función para convertir mes a trimestre
+    def mes_a_trimestre(mes):
+      if pd.isna(mes):
+        return "Desconocido"
+      m = str(mes).strip().lower()
+      if any(k in m for k in ["enero", "febrero", "marzo"]):
+        return "Trimestre 1 (Ene-Mar)"
+      elif any(k in m for k in ["abril", "mayo", "junio"]):
+        return "Trimestre 2 (Abr-Jun)"
+      elif any(k in m for k in ["julio", "agosto", "septiembre"]):
+        return "Trimestre 3 (Jul-Sep)"
+      elif any(k in m for k in ["octubre", "noviembre", "diciembre"]):
+        return "Trimestre 4 (Oct-Dic)"
+      return "Desconocido"
+
+
+    df_unicos["Trimestre_Nacimiento"] = df_unicos[c_mes].apply(mes_a_trimestre)
+
+    st.markdown("---")
+    col_geo, col_trim = st.columns(2)
+
+    with col_geo:
+      st.markdown("#### 🗺️ Distribución Geográfica por Departamento")
+      df_geo = (
+          df_unicos[c_depto]
+          .value_counts()
+          .reset_index(name="Cantidad_Jugadores")
+      )
+      df_geo.columns = ["Departamento", "Cantidad_Jugadores"]
+      df_geo["Porcentaje"] = (
+          df_geo["Cantidad_Jugadores"] / df_geo["Cantidad_Jugadores"].sum()
+      ) * 100
+
+      fig_geo = px.bar(
+          df_geo,
+          x="Porcentaje",
+          y="Departamento",
+          orientation="h",
+          text=df_geo["Porcentaje"].apply(lambda x: f"{x:.1f}%"),
+          color="Porcentaje",
+          color_continuous_scale="Reds",
+          labels={
+              "Porcentaje": "% del Plantel",
+              "Departamento": "Departamento de Origen",
+          },
+          title="<b>% de Jugadores por Departamento de Origen</b>",
+      )
+      fig_geo.update_layout(
+          plot_bgcolor="rgba(0,0,0,0)",
+          paper_bgcolor="rgba(0,0,0,0)",
+          height=380,
+          margin=dict(l=10, r=10, t=40, b=10),
+          showlegend=False,
+      )
+      fig_geo.update_traces(textposition="outside")
+      st.plotly_chart(fig_geo, use_container_width=True)
+
+      with st.expander("🔍 Ver detalle de jugadores por Departamento"):
+        depto_sel = st.selectbox(
+            "Selecciona Departamento:",
+            df_geo["Departamento"].unique(),
+            key="sel_depto_exp",
+        )
+        jug_depto = df_unicos[df_unicos[c_depto] == depto_sel][
+            [columna_nombre, col_pos, c_mes, c_anio]
+        ]
+        st.dataframe(jug_depto, use_container_width=True)
+
+    with col_trim:
+      st.markdown(
+          "#### 📅 Distribución por Trimestre y Año de Nacimiento"
+      )
+
+      # Ordenar trimestres cronológicamente
+      orden_trimestres = [
+          "Trimestre 1 (Ene-Mar)",
+          "Trimestre 2 (Abr-Jun)",
+          "Trimestre 3 (Jul-Sep)",
+          "Trimestre 4 (Oct-Dic)",
+      ]
+      df_trim = (
+          df_unicos["Trimestre_Nacimiento"]
+          .value_counts()
+          .reindex(orden_trimestres, fill_value=0)
+          .reset_index(name="Cantidad_Jugadores")
+      )
+      df_trim.columns = ["Trimestre", "Cantidad_Jugadores"]
+      df_trim["Porcentaje"] = (
+          df_trim["Cantidad_Jugadores"] / df_trim["Cantidad_Jugadores"].sum()
+      ) * 100
+
+      fig_trim = px.bar(
+          df_trim,
+          x="Trimestre",
+          y="Cantidad_Jugadores",
+          text=df_trim["Porcentaje"].apply(lambda x: f"{x:.1f}%"),
+          color="Cantidad_Jugadores",
+          color_continuous_scale="Blues",
+          labels={
+              "Cantidad_Jugadores": "Nº de Jugadores",
+              "Trimestre": "Trimestre de Nacimiento",
+          },
+          title="<b>Jugadores Nacidos por Trimestre del Año</b>",
+      )
+      fig_trim.update_layout(
+          plot_bgcolor="rgba(0,0,0,0)",
+          paper_bgcolor="rgba(0,0,0,0)",
+          height=380,
+          margin=dict(l=10, r=10, t=40, b=10),
+          showlegend=False,
+      )
+      fig_trim.update_traces(textposition="outside")
+      st.plotly_chart(fig_trim, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("#### 🎂 Desglose por Año de Nacimiento y Edad del Plantel")
+
+    df_anio = (
+        df_unicos.groupby(c_anio, as_index=False)
+        .agg(Cantidad_Jugadores=(columna_nombre, "count"))
+        .sort_values(by=c_anio)
+    )
+    df_anio[c_anio] = df_anio[c_anio].astype(int).astype(str)
+
+    fig_anio = px.bar(
+        df_anio,
+        x=c_anio,
+        y="Cantidad_Jugadores",
+        text="Cantidad_Jugadores",
+        color="Cantidad_Jugadores",
+        color_continuous_scale="Viridis",
+        labels={
+            c_anio: "Año de Nacimiento",
+            "Cantidad_Jugadores": "Número de Jugadores",
+        },
+        title="<b>Estructura de Edades / Año de Nacimiento del Plantel</b>",
+    )
+    fig_anio.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        height=350,
+        margin=dict(l=20, r=20, t=40, b=20),
+    )
+    fig_anio.update_traces(textposition="outside")
+    st.plotly_chart(fig_anio, use_container_width=True)
+
+    with st.expander("📋 Ver Listado Completo de Deportistas (Datos Únicos)"):
+      st.dataframe(
+          df_unicos[[columna_nombre, col_pos, c_depto, c_mes, c_anio, "Trimestre_Nacimiento"]],
+          use_container_width=True,
+      )
+  else:
+    st.warning(
+        "No se encontraron las columnas de Departamento, Mes o Año de"
+        " Nacimiento en el archivo."
+    )
